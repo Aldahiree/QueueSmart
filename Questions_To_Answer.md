@@ -52,6 +52,35 @@ Ensuring users receive alerts promptly even if they minimize or leave the applic
 
 ## 2. Development Methodology
 
+### 2.1 Chosen Methodology
+
+Our team will follow **Scrum**, an Agile framework, to guide the development of QueueSmart throughout the semester.
+
+### 2.2 Why This Methodology Is Appropriate
+
+**Fits the Project's Modular Structure:**
+QueueSmart breaks naturally into distinct feature areas (authentication, service management, queue logic, notifications, and history), which Scrum's iterative approach is well-suited to handle as separate, testable units rather than one large upfront design.
+
+**Supports Team Collaboration:**
+With a four-person team, Scrum's emphasis on shared ownership, frequent communication, and short feedback loops helps distribute work evenly and keeps everyone accountable, rather than relying on one or two members to drive the whole project.
+
+**Accommodates Evolving Requirements:**
+As the project moves from design (A1) into UI/UX (A2), API design (A3), and data design (A4), our understanding of the system will deepen. Scrum's sprint structure gives us regular checkpoints to revisit and refine earlier decisions based on what we learn, instead of locking in assumptions too early.
+
+### 2.3 Supporting Work Across Multiple Assignments
+
+**Assignment-Based Sprints:**
+We are treating each assignment as its own sprint with a defined goal: A1 for design and architecture, A2 for UI/UX, A3 for the API layer, and A4 for data design, building toward the final project and demo.
+
+**Sprint Planning and Check-Ins:**
+At the start of each sprint, we will define clear deliverables and split tasks among team members, with brief check-ins throughout to track progress and surface blockers early.
+
+**Sprint Review:**
+At the end of each sprint, we will review completed work against the assignment requirements before moving into the next one, ensuring nothing carries forward incomplete.
+
+**Traceable Contributions:**
+This structure keeps GitHub contribution history clear, since each team member's work maps to a specific sprint and deliverable, which supports the assignment's contribution documentation requirement.
+
 ---
 
 ## 3. High-Level Design / Architecture
