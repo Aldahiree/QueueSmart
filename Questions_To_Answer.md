@@ -85,6 +85,30 @@ This structure keeps GitHub contribution history clear, since each team member's
 
 ## 3. High-Level Design / Architecture
 
+### 3.1 Overview
+With QueueSmart using a standard three-tier client-server based architecture, there will be a client tier which users and administrators will interact with, alongside a backend application tier that holds the business logic, and a data tier which will store the state. A single external system, in this case an email service, will be used for verification alongside notifications. Everything stated except for email delivery will be all integrated directly into QueueSmart itself. 
+
+### 3.2 Major Components
+
+  1. **Client Tier (Frontend)**: A web and mobile interface for end users to register, join and leave queues, view positions and wait time ETAs, view services available, alongside browse services. For administrators, there will be a dedicated admin dashboard which will be used to be able to create services, manage active queues (such as starting, ending, pausing, resuming), adjusting priorities, and reviewing usage analytics. The client will be rendering data and sending requests only.
+
+  2. **Application Tier (backend):** This will be the primary core of the system, being responsible for authentication, service management, notifications, data analytics (such as history and reporting), and the queue engine (joining, leaving, position, time calculation, etc.). Wait times can be inferred upon per site based on analytics (example being calculating an ETA based on the average time a customer spends on that site before leaving, or how long a queue pass would last before a customer must be sent back to wait again). 
+
+  3. **Data Tier (database):** This database will persist all system state, such as user/admin accounts, service definitions, live queue entries, and historical participation records that will be fed to admin statistics.
+
+### 3.3 How Components Will Interact
+
+  1. A user or administrator will authenticate through the frontend, with the backend verifying credentials and role, triggering the email service for further verification.
+
+  2. An administrator will create and configure services through the dashboard, with the backend storing definitions in the database.
+
+  3. A user will join the queue from the client, with the queue engine inserting them in order of arrival time and priority. The queue engine will then poll and return their updated position and estimated wait time to the frontend.
+
+  4. As the queue advances further, the backend will push live updates to the client end,  such as when a user nears their turn or passes the queue, a message will be handed to the email service and/or notification system.
+
+  5. Each completed interaction will be written to history, with the backend aggregating history the administrator's usage statistics view. 
+
+
 ---
 
 ## 4. System Context Diagram
