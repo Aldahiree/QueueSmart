@@ -1,27 +1,10 @@
 import { useState } from 'react'
+import { services as mockServices } from '../data/mockData'
 import './Admin.css'
 
 function ServiceManagement() {
-  const [services, setServices] = useState([
-    {
-      name: 'Academic Advising',
-      description: 'Help students with classes and degree planning.',
-      duration: 20,
-      priority: 'Medium'
-    },
-    {
-      name: 'Financial Aid',
-      description: 'Help students with financial aid questions.',
-      duration: 15,
-      priority: 'High'
-    },
-    {
-      name: 'IT Help Desk',
-      description: 'Help users with technical and computer issues.',
-      duration: 10,
-      priority: 'Low'
-    }
-  ])
+  const [services, setServices] = useState(mockServices)
+
   const[name, setName] = useState('')
   const[description, setDescription] = useState('')
   const[duration, setDuration] = useState('')

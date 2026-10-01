@@ -1,51 +1,10 @@
 import { useState } from 'react'
+import { services, queues as mockQueues } from '../data/mockData'
 import './Admin.css'
 
 function QueueManagement() {
-  const [selectedServices, setSelectedServices] = useState('Academic Advising')
-  const [queues, setQueues] = useState({
-    'Academic Advising': [
-      {
-        id: 1,
-        name: "John doe",
-        waitTime: 5
-      },
-      {
-        id: 2,
-        name: "Katarina Noxus",
-        waitTime: 10
-      },
-      {
-        id: 3,
-        name: "Thomas Anderson",
-        waitTime: 15
-      }
-    ],
-    'Financial Aid': [
-      {
-        id: 4,
-        name: "Sarah Lee",
-        waitTime: 8
-      },
-      {
-        id: 5,
-        name: "Aziz Aldraje",
-        waitTime: 14
-      }
-    ],
-    'IT Help Desk': [
-      {
-        id: 6,
-        name: "Ali Manfar",
-        waitTime: 6
-      },
-      {
-        id: 7,
-        name: "Mando Allhide",
-        waitTime: 7
-      }
-    ]
-  })
+  const [selectedServices, setSelectedServices] = useState(services[0].name)
+  const [queues, setQueues] = useState(mockQueues)
 
   const queue = queues[selectedServices]
 
@@ -104,9 +63,11 @@ function QueueManagement() {
         <select
         value={selectedServices}
         onChange={(event) => setSelectedServices(event.target.value)}>
-          <option value='Academic Advising'>Academic Advising</option>
-          <option value="Financial Aid">Financial Aid</option>
-          <option value="IT Help Desk">IT Help Desk</option>
+          {services.map((service) => (
+            <option key={service.id} value={service.name}>
+              {service.name}
+            </option>
+          ))}
         </select>
       </div>
       <h2>{selectedServices} Queue</h2>

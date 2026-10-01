@@ -1,35 +1,14 @@
 import { useState } from 'react'
+import { services as mockServices } from '../data/mockData'
 import './Admin.css'
 
 function AdminDashboard() {
-  const [services, setServices] = useState([
-    {                                                    //Mock data
-      id: 1,
-      name: 'Academic Advising',
-      queueLength: 6,
-      status: 'Open'
-    },
-    {
-      id: 2,
-      name: 'Financial Aid',
-      queueLength: 4,
-      status: 'Open'
-    },
-    {
-      id: 3,
-      name: 'IT Help Desk',
-      queueLength: 2,
-      status: 'Closed'
-    }
-  ])
+  const [services, setServices] = useState(mockServices)
+
   function changeStatus(id) {                  //this function changes the service status by taking the id from the mock data as a parameter
     const updateServices = services.map((service)=>{
       if(service.id === id){
-        if(service.status === 'Open') {
-          return { ...service, status: 'Closed' }
-        } else {
-          return { ...service, status: 'Open' }
-        }
+        return { ...service, isOpen: !service.isOpen }
       }
       return service
     })
@@ -50,12 +29,12 @@ function AdminDashboard() {
             </p>
 
             <p>
-              Status: <strong>{service.status}</strong>
+              Status: <strong>{service.isOpen ? 'Open' : 'Closed'}</strong>
             </p>
 
             {/* button to change the service status */}
             <button onClick={() => changeStatus(service.id)}>
-              {service.status === 'Open'
+              {service.isOpen
               ? 'Close Queue'
               : 'Open Queue'}
             </button>
@@ -68,5 +47,4 @@ function AdminDashboard() {
 }
 
 export default AdminDashboard
-
 

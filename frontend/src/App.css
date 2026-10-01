@@ -3,43 +3,53 @@
 }
 
 .navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  padding: 15px 30px;
-
   background-color: white;
+  padding: 20px;
   border-bottom: 1px solid #ddd;
 }
 
 .navbar h2 {
-  margin: 0;
+  margin-top: 0;
 }
 
-.nav-links {
-  display: flex;
-  gap: 20px;
-}
-
-.nav-links a {
+.navbar a {
+  margin-right: 20px;
   color: #222;
   text-decoration: none;
   font-weight: bold;
 }
 
-.nav-links a:hover {
+.navbar a:hover {
   text-decoration: underline;
 }
 
-@media (max-width: 700px) {
-  .navbar {
-    flex-direction: column;
-    gap: 15px;
-  }
+.page-container {
+  max-width: 1000px;
+  margin: auto;
+  padding: 30px;
+}
 
-  .nav-links {
-    flex-direction: column;
-    text-align: center;
-  }
+.card {
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.page-container label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.page-container select {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 15px;
+}
+
+.page-container button {
+  padding: 8px 14px;
+  cursor: pointer;
 }
