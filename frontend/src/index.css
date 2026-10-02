@@ -11,3 +11,9 @@ body {
   color: #222;
 }
 
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}

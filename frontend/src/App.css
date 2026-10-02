@@ -2,26 +2,89 @@
   min-height: 100vh;
 }
 
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-main {
+  min-height: 80vh;
+}
+
+/* Navbar */
+
 .navbar {
   background-color: white;
-  padding: 20px;
   border-bottom: 1px solid #ddd;
 }
 
-.navbar h2 {
-  margin-top: 0;
+.navbar-inner {
+  max-width: 1400px;
+  margin: auto;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
-.navbar a {
-  margin-right: 20px;
+.navbar-brand {
   color: #222;
   text-decoration: none;
+  flex-shrink: 0;
+}
+
+.navbar-brand h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  flex-wrap: nowrap;
+}
+
+.navbar-links a {
+  color: #333;
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+.navbar-links a:hover {
+  text-decoration: underline;
+}
+
+.navbar-links a.active {
   font-weight: bold;
 }
 
-.navbar a:hover {
-  text-decoration: underline;
+.navbar-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
+
+.navbar-user {
+  font-weight: bold;
+}
+
+.navbar-login,
+.navbar-register {
+  color: #222;
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+.navbar-action {
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+/* Main Pages */
 
 .page-container {
   max-width: 1000px;
@@ -37,20 +100,78 @@
   margin-top: 20px;
 }
 
+/* Forms */
+
 .page-container label {
   display: block;
+  margin-top: 15px;
   margin-bottom: 5px;
   font-weight: bold;
 }
 
-.page-container select {
+.page-container input,
+.page-container select,
+.page-container textarea {
   width: 100%;
   padding: 8px;
-  margin-bottom: 15px;
+  border: 1px solid #bbb;
+  border-radius: 5px;
 }
 
 .page-container button {
   padding: 8px 14px;
+  margin-top: 10px;
+  border: 1px solid #bbb;
+  border-radius: 5px;
   cursor: pointer;
+}
+
+.page-container button:hover {
+  background-color: #e9e9e9;
+}
+
+/* Login and Register */
+
+.auth-card {
+  max-width: 500px;
+  margin: 40px auto;
+}
+
+.auth-form label {
+  margin-top: 15px;
+}
+
+.auth-submit {
+  margin-top: 20px;
+}
+
+.auth-error {
+  color: #b42318;
+}
+
+.auth-switch {
+  margin-top: 20px;
+}
+
+/* Smaller screens */
+
+@media (max-width: 900px) {
+  .navbar-inner {
+    flex-wrap: wrap;
+  }
+
+  .navbar-links {
+    order: 3;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .navbar-account {
+    margin-left: auto;
+  }
+
+  .page-container {
+    padding: 20px;
+  }
 }
 

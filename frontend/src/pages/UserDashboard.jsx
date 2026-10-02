@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom'
-import { services, currentQueue, notifications } from '../data/mockData'
+import { services } from '../data/mockData'
+import { getStatus } from '../utils/queueStatus'
 
-export default function UserDashboard() {
+export default function UserDashboard({ activeQueue, notifications }) {
   const activeServices = services.filter((s) => s.isOpen)
-  const queueService = services.find((s) => s.id === currentQueue?.serviceId)
+  const queueService = services.find((s) => s.id === activeQueue?.serviceId)
   const unread = notifications.filter((n) => !n.read)
 
   return (
@@ -15,11 +16,11 @@ export default function UserDashboard() {
         {queueService ? (
           <>
             <p><strong>Service:</strong> {queueService.name}</p>
-            <p><strong>Position:</strong> {currentQueue.position}</p>
-            <p><strong>Status:</strong> {currentQueue.status}</p>
+            <p><strong>Position:</strong> {activeQueue.position}</p>
+            <p><strong>Status:</strong> {getStatus(activeQueue.position)}</p>
             <p>
               <strong>Estimated wait:</strong>{' '}
-              {currentQueue.position * queueService.duration} minutes
+              {Math.max(activeQueue.position - 1, 0) * queueService.duration} minutes
             </p>
           </>
         ) : (

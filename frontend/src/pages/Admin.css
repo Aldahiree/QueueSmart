@@ -25,7 +25,7 @@
 
 .service-card {
   background-color: white;
-  border: 1px #ddd;
+  border: 1px solid #ddd;
   border-radius: 8px;
   padding: 20px;
   width: 280px;
@@ -36,7 +36,7 @@
   margin-top: 0;
 }
 
-button {
+.admin-page button {
   padding: 8px 14px;
   margin: 5px;
   border: 1px solid #bbb;
@@ -44,11 +44,11 @@ button {
   cursor: pointer;
 }
 
-button:hover {
+.admin-page button:hover {
   background-color: #e9e9e9;
 }
 
-button:disabled {
+.admin-page button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -71,7 +71,7 @@ button:disabled {
 
 .service-form input,
 .service-form textarea,
-.seervice-form select {
+.service-form select {
   width: 100%;
   padding: 8px;
   border: 1px solid #bbb;
@@ -124,13 +124,15 @@ button:disabled {
   border: 1px solid #ddd;
 }
 
-@media(width: 700px) {
+@media (max-width: 700px) {
   .admin-page {
     padding: 15px;
   }
+
   .service-card {
     width: 100%;
   }
+
   .queue-table {
     font-size: 14px;
   }
