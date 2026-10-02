@@ -29,7 +29,14 @@ export const currentQueue = {
 }
 
 export const notifications = [
-  { id: 1, message: 'You moved up to position 3', read: false },
+  { id: 1, message: 'You joined the Academic Advising queue.', read: false },
   { id: 2, message: 'Financial Aid queue is now open', read: true },
 ]
 
+export const history = [
+  { id: 1, serviceName: 'Academic Advising', date: '2026-09-28', outcome: 'Served' },
+  { id: 2, serviceName: 'IT Help Desk', date: '2026-09-22', outcome: 'Left queue' },
+  { id: 3, serviceName: 'Financial Aid', date: '2026-09-15', outcome: 'Served' },
+  { id: 4, serviceName: 'Academic Advising', date: '2026-09-03', outcome: 'Missed turn' },
+  { id: 5, serviceName: 'Financial Aid', date: '2026-08-26', outcome: 'Served' },
+]

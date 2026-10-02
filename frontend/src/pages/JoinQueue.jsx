@@ -1,14 +1,16 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { services } from '../data/mockData'
 
-export default function JoinQueue() {
+export default function JoinQueue({ activeQueue, onJoin, onLeave }) {
   const [selectedId, setSelectedId] = useState('')
-  const [joinedId, setJoinedId] = useState(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
+  const joinedId = activeQueue ? activeQueue.serviceId : null
+
   const openServices = services.filter((s) => s.isOpen)
-  const selected = services.find((s) => s.id === Number(selectedId))
+  const selected = services.find((s) => s.id === Number(joinedId ?? selectedId))
   const joined = services.find((s) => s.id === joinedId)
 
   const waitTime = (service) => service.queueLength * service.duration
@@ -23,13 +25,13 @@ export default function JoinQueue() {
       return
     }
     setError('')
-    setJoinedId(selected.id)
+    onJoin(selected.id)
     setMessage(`You joined the ${selected.name} queue.`)
   }
 
   function handleLeave() {
     setMessage(`You left the ${joined.name} queue.`)
-    setJoinedId(null)
+    onLeave()
     setSelectedId('')
   }
 
@@ -43,7 +45,7 @@ export default function JoinQueue() {
         <label htmlFor="service">Select a service</label>
         <select
           id="service"
-          value={selectedId}
+          value={joinedId ?? selectedId}
           onChange={(e) => {
             setSelectedId(e.target.value)
             setError('')
@@ -73,7 +75,12 @@ export default function JoinQueue() {
         )}
 
         {joinedId ? (
-          <button onClick={handleLeave}>Leave Queue</button>
+          <>
+            <p>
+              You are in this queue. <Link to="/queue-status">Track your position</Link>
+            </p>
+            <button onClick={handleLeave}>Leave Queue</button>
+          </>
         ) : (
           <button onClick={handleJoin}>Join Queue</button>
         )}

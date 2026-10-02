@@ -1,6 +1,6 @@
 import { Link, NavLink } from 'react-router-dom'
 
-export default function Navbar({ currentUser, onLogout }) {
+export default function Navbar({ currentUser, onLogout, unreadCount = 0 }) {
 	return (
 		<header className="navbar">
 			<div className="navbar-inner">
@@ -10,6 +10,11 @@ export default function Navbar({ currentUser, onLogout }) {
 
 				<nav className="navbar-links" aria-label="Main navigation">
 					<NavLink to="/join-queue">Join Queue</NavLink>
+					<NavLink to="/queue-status">Queue Status</NavLink>
+					<NavLink to="/history">History</NavLink>
+					<NavLink to="/notifications">
+						Notifications{unreadCount > 0 && ` (${unreadCount})`}
+					</NavLink>
 					<NavLink to="/admin">Admin Dashboard</NavLink>
 					<NavLink to="/admin/services">Services</NavLink>
 					<NavLink to="/admin/queue">Queue Management</NavLink>
