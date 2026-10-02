@@ -32,3 +32,4 @@ export const notifications = [
   { id: 1, message: 'You moved up to position 3', read: false },
   { id: 2, message: 'Financial Aid queue is now open', read: true },
 ]
+
