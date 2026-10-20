@@ -1,6 +1,18 @@
 import { Link, NavLink } from 'react-router-dom'
+import { useState } from 'react'
 
 export default function Navbar({ currentUser, onLogout, unreadCount = 0 }) {
+  const [logoutError, setLogoutError] = useState('')
+
+  async function handleLogout() {
+    setLogoutError('')
+    try {
+      await onLogout()
+    } catch (error) {
+      setLogoutError(error.message || 'Unable to log out. Please try again.')
+    }
+  }
+
   return (
     <header className="navbar">
       <div className="navbar-inner">
@@ -18,9 +30,13 @@ export default function Navbar({ currentUser, onLogout, unreadCount = 0 }) {
             Notifications{unreadCount > 0 && ` (${unreadCount})`}
           </NavLink>
 
-          <NavLink to="/admin">Admin Dashboard</NavLink>
-          <NavLink to="/admin/services">Services</NavLink>
-          <NavLink to="/admin/queue">Queue Management</NavLink>
+          {currentUser?.role === 'Administrator' && (
+            <>
+              <NavLink to="/admin">Admin Dashboard</NavLink>
+              <NavLink to="/admin/services">Services</NavLink>
+              <NavLink to="/admin/queue">Queue Management</NavLink>
+            </>
+          )}
         </nav>
 
         <div className="navbar-account">
@@ -31,10 +47,11 @@ export default function Navbar({ currentUser, onLogout, unreadCount = 0 }) {
               <button
                 className="navbar-action"
                 type="button"
-                onClick={onLogout}
+                onClick={handleLogout}
               >
                 Log out
               </button>
+              {logoutError && <span role="alert">{logoutError}</span>}
             </>
           ) : (
             <>

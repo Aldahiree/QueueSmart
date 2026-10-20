@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
+import { loginAccount, logoutAccount, registerAccount } from './api/auth'
 
 import {
   services,
@@ -24,9 +25,15 @@ import AdminDashboard from './pages/AdminDashboard'
 import ServiceManagement from './pages/ServiceManagement'
 import QueueManagement from './pages/QueueManagement'
 
+function AdminOnly({ currentUser, children }) {
+  return currentUser?.role === 'Administrator'
+    ? children
+    : <Navigate to="/dashboard" replace />
+}
+
 function App() {
-  const [users, setUsers] = useState([])
-  const [currentUser, setCurrentUser] = useState(null)
+  const [session, setSession] = useState(null)
+  const currentUser = session?.user ?? null
 
   // Current queue the user is in
   const [activeQueue, setActiveQueue] = useState(
@@ -152,58 +159,21 @@ function App() {
     )
   }
 
-  function handleRegister({ name, email, password }) {
-    const normalizedEmail = email.trim().toLowerCase()
-
-    if (users.some((user) => user.email === normalizedEmail)) {
-      return {
-        success: false,
-        message: 'An account with this email already exists.'
-      }
-    }
-
-    const newUser = {
-      name: name.trim(),
-      email: normalizedEmail,
-      password: password
-    }
-
-    setUsers((existingUsers) => [...existingUsers, newUser])
-
-    setCurrentUser({
-      name: newUser.name,
-      email: newUser.email
-    })
-
-    return { success: true }
+  async function handleRegister(credentials) {
+    const newSession = await registerAccount(credentials)
+    setSession(newSession)
+    return { success: true, user: newSession.user }
   }
 
-  function handleLogin({ email, password }) {
-    const normalizedEmail = email.trim().toLowerCase()
-
-    const user = users.find(
-      (savedUser) =>
-        savedUser.email === normalizedEmail &&
-        savedUser.password === password
-    )
-
-    if (!user) {
-      return {
-        success: false,
-        message: 'Email or password is incorrect.'
-      }
-    }
-
-    setCurrentUser({
-      name: user.name,
-      email: user.email
-    })
-
-    return { success: true }
+  async function handleLogin(credentials) {
+    const newSession = await loginAccount(credentials)
+    setSession(newSession)
+    return { success: true, user: newSession.user }
   }
 
-  function handleLogout() {
-    setCurrentUser(null)
+  async function handleLogout() {
+    await logoutAccount(session.token)
+    setSession(null)
   }
 
   return (
@@ -265,9 +235,15 @@ function App() {
               }
             />
 
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/services" element={<ServiceManagement />} />
-            <Route path="/admin/queue" element={<QueueManagement />} />
+            <Route path="/admin" element={
+              <AdminOnly currentUser={currentUser}><AdminDashboard /></AdminOnly>
+            } />
+            <Route path="/admin/services" element={
+              <AdminOnly currentUser={currentUser}><ServiceManagement /></AdminOnly>
+            } />
+            <Route path="/admin/queue" element={
+              <AdminOnly currentUser={currentUser}><QueueManagement /></AdminOnly>
+            } />
 
             <Route path="/login" element={<Login onLogin={handleLogin} />} />
             <Route path="/register" element={<Register onRegister={handleRegister} />} />
