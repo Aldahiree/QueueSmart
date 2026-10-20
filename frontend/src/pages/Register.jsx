@@ -7,10 +7,12 @@ export default function Register({ onRegister }) {
 	const [password, setPassword] = useState('')
 	const [confirmation, setConfirmation] = useState('')
 	const [error, setError] = useState('')
+	const [submitting, setSubmitting] = useState(false)
 	const navigate = useNavigate()
 
-	function handleSubmit(event) {
+	async function handleSubmit(event) {
 		event.preventDefault()
+		setError('')
 		if (name.trim().length < 2) {
 			setError('Enter a name with at least 2 characters.')
 			return
@@ -20,12 +22,15 @@ export default function Register({ onRegister }) {
 			return
 		}
 
-		const result = onRegister({ name, email, password })
-		if (!result.success) {
-			setError(result.message)
-			return
+		setSubmitting(true)
+		try {
+			const result = await onRegister({ name, email, password })
+			navigate(result.user.role === 'Administrator' ? '/admin' : '/join-queue')
+		} catch (requestError) {
+			setError(requestError.message || 'Unable to create an account. Please try again.')
+		} finally {
+			setSubmitting(false)
 		}
-		navigate('/join-queue')
 	}
 
 	return (
@@ -93,7 +98,9 @@ export default function Register({ onRegister }) {
 					/>
 
 					{error && <p className="auth-error" role="alert">{error}</p>}
-					<button className="auth-submit" type="submit">Create account</button>
+					<button className="auth-submit" type="submit" disabled={submitting}>
+						{submitting ? 'Creating account...' : 'Create account'}
+					</button>
 				</form>
 
 				<p className="auth-switch">
