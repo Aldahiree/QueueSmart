@@ -1,6 +1,8 @@
 import cors from 'cors'
 import express from 'express'
 import { AuthError } from './authService.js'
+import { createQueueService } from './queueService.js'
+import { createQueueRoutes } from './queueRoutes.js'
 
 function authenticationRequired(authService) {
   return (request, response, next) => {
@@ -67,6 +69,24 @@ export function createApp({ authService, frontendOrigin } = {}) {
     authService.revokeToken(request.authToken)
     response.status(204).end()
   })
+
+
+  //temporary services until person 2 finishes the service management part
+  const services = new Map([
+    ['1', { id: '1', name: 'Academic Advising', isOpen: true }],
+    ['2', { id: '2', name: 'Financial Aid', isOpen: true }],
+    ['3', { id: '3', name: 'IT Help Desk', isOpen: false }]
+  ])
+
+  //create the queue system
+  const queueService = createQueueService()
+
+  //connect my queue routes with the existing login system
+  app.use('/api/queues', requireAuthentication, createQueueRoutes({
+    queueService,
+    getService: (id) => services.get(String(id))
+  }))
+
 
   app.use((error, request, response, next) => {
     if (response.headersSent) {
