@@ -1,3 +1,4 @@
+
 import { useRef, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
@@ -5,7 +6,6 @@ import { loginAccount, logoutAccount, registerAccount } from './api/auth'
 
 import {
   services,
-  currentQueue,
   notifications as mockNotifications,
   history as mockHistory
 } from './data/mockData'
@@ -26,9 +26,24 @@ import ServiceManagement from './pages/ServiceManagement'
 import QueueManagement from './pages/QueueManagement'
 
 function AdminOnly({ currentUser, children }) {
-  return currentUser?.role === 'Administrator'
+  if (!currentUser) {
+    return <Navigate to="/login" replace />
+  }
+
+  return currentUser.role === 'Administrator'
     ? children
     : <Navigate to="/dashboard" replace />
+}
+
+//only regular users can access these pages
+function UserOnly({ currentUser, children }) {
+  if (!currentUser) {
+    return <Navigate to="/login" replace />
+  }
+
+  return currentUser.role === 'User'
+    ? children
+    : <Navigate to="/admin" replace />
 }
 
 function App() {
@@ -36,14 +51,7 @@ function App() {
   const currentUser = session?.user ?? null
 
   // Current queue the user is in
-  const [activeQueue, setActiveQueue] = useState(
-    currentQueue
-      ? {
-          serviceId: currentQueue.serviceId,
-          position: currentQueue.position
-        }
-      : null
-  )
+  const [activeQueue, setActiveQueue] = useState(null)
 
   const [notifications, setNotifications] = useState(mockNotifications)
   const [history, setHistory] = useState(mockHistory)
@@ -88,7 +96,8 @@ function App() {
     setHistory((existing) => [entry, ...existing])
   }
 
-  function handleJoinQueue(serviceId) {
+  //update the user's queue after joining
+  function handleJoinQueue(serviceId, position) {
     const service = services.find((service) => service.id === serviceId)
 
     if (!service) {
@@ -97,12 +106,13 @@ function App() {
 
     setActiveQueue({
       serviceId: serviceId,
-      position: service.queueLength + 1
+      position: position
     })
 
     notify(`You joined the ${service.name} queue.`)
   }
 
+  //update the user's queue after leaving
   function handleLeaveQueue() {
     if (!activeQueue || !activeService) {
       return
@@ -111,6 +121,36 @@ function App() {
     addHistory(activeService.name, 'Left queue')
     notify(`You left the ${activeService.name} queue.`)
     setActiveQueue(null)
+  }
+
+  //leave the queue from the queue status page
+  async function handleLeaveFromStatus() {
+    if (!activeQueue || !session?.token) {
+      return
+    }
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}/api/queues/${activeQueue.serviceId}/leave`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.token}`
+          }
+        }
+      )
+
+      if (!response.ok) {
+        const data = await response.json()
+        notify(data.message || 'Could not leave the queue.')
+        return
+      }
+
+      handleLeaveQueue()
+
+    } catch (error) {
+      notify('Could not connect to the server.')
+    }
   }
 
   // Simulates the queue moving forward since there is no backend yet
@@ -162,18 +202,26 @@ function App() {
   async function handleRegister(credentials) {
     const newSession = await registerAccount(credentials)
     setSession(newSession)
+    setActiveQueue(null)
     return { success: true, user: newSession.user }
   }
 
   async function handleLogin(credentials) {
     const newSession = await loginAccount(credentials)
     setSession(newSession)
+    setActiveQueue(null)
     return { success: true, user: newSession.user }
   }
 
   async function handleLogout() {
-    await logoutAccount(session.token)
-    setSession(null)
+    try {
+      if (session?.token) {
+        await logoutAccount(session.token)
+      }
+    } finally {
+      setSession(null)
+      setActiveQueue(null)
+    }
   }
 
   return (
@@ -187,68 +235,132 @@ function App() {
 
         <main className="app-main">
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+            <Route
+              path="/"
+              element={
+                <Navigate
+                  to={
+                    !currentUser
+                      ? '/login'
+                      : currentUser.role === 'Administrator'
+                        ? '/admin'
+                        : '/dashboard'
+                  }
+                  replace
+                />
+              }
+            />
 
             <Route
               path="/dashboard"
               element={
-                <UserDashboard
-                  activeQueue={activeQueue}
-                  notifications={notifications}
-                />
+                <UserOnly currentUser={currentUser}>
+                  <UserDashboard
+                    activeQueue={activeQueue}
+                    notifications={notifications}
+                  />
+                </UserOnly>
               }
             />
 
             <Route
               path="/join-queue"
               element={
-                <JoinQueue
-                  activeQueue={inQueue ? activeQueue : null}
-                  onJoin={handleJoinQueue}
-                  onLeave={handleLeaveQueue}
-                />
+                <UserOnly currentUser={currentUser}>
+                  <JoinQueue
+                    activeQueue={inQueue ? activeQueue : null}
+                    onJoin={handleJoinQueue}
+                    onLeave={handleLeaveQueue}
+                    token={session?.token}
+                  />
+                </UserOnly>
               }
             />
 
             <Route
               path="/queue-status"
               element={
-                <QueueStatus
-                  activeQueue={activeQueue}
-                  onAdvance={handleAdvanceQueue}
-                  onLeave={handleLeaveQueue}
-                />
+                <UserOnly currentUser={currentUser}>
+                  <QueueStatus
+                    activeQueue={activeQueue}
+                    onAdvance={handleAdvanceQueue}
+                    onLeave={handleLeaveFromStatus}
+                  />
+                </UserOnly>
               }
             />
 
-            <Route path="/history" element={<History history={history} />} />
+            <Route
+              path="/history"
+              element={
+                <UserOnly currentUser={currentUser}>
+                  <History history={history} />
+                </UserOnly>
+              }
+            />
 
             <Route
               path="/notifications"
               element={
-                <NotificationsPage
-                  notifications={notifications}
-                  onMarkRead={handleMarkRead}
-                  onMarkAllRead={handleMarkAllRead}
-                  onClear={() => setNotifications([])}
-                />
+                <UserOnly currentUser={currentUser}>
+                  <NotificationsPage
+                    notifications={notifications}
+                    onMarkRead={handleMarkRead}
+                    onMarkAllRead={handleMarkAllRead}
+                    onClear={() => setNotifications([])}
+                  />
+                </UserOnly>
               }
             />
 
-            <Route path="/admin" element={
-              <AdminOnly currentUser={currentUser}><AdminDashboard /></AdminOnly>
-            } />
-            <Route path="/admin/services" element={
-              <AdminOnly currentUser={currentUser}><ServiceManagement /></AdminOnly>
-            } />
-            <Route path="/admin/queue" element={
-              <AdminOnly currentUser={currentUser}><QueueManagement /></AdminOnly>
-            } />
+            <Route
+              path="/admin"
+              element={
+                <AdminOnly currentUser={currentUser}>
+                  <AdminDashboard />
+                </AdminOnly>
+              }
+            />
 
-            <Route path="/login" element={<Login onLogin={handleLogin} />} />
-            <Route path="/register" element={<Register onRegister={handleRegister} />} />
+            <Route
+              path="/admin/services"
+              element={
+                <AdminOnly currentUser={currentUser}>
+                  <ServiceManagement />
+                </AdminOnly>
+              }
+            />
 
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route
+              path="/admin/queue"
+              element={
+                <AdminOnly currentUser={currentUser}>
+                  <QueueManagement token={session?.token} />
+                </AdminOnly>
+              }
+            />
+
+            <Route
+              path="/login"
+              element={
+                currentUser
+                  ? <Navigate to={currentUser.role === 'Administrator' ? '/admin' : '/dashboard'} replace />
+                  : <Login onLogin={handleLogin} />
+              }
+            />
+
+            <Route
+              path="/register"
+              element={
+                currentUser
+                  ? <Navigate to={currentUser.role === 'Administrator' ? '/admin' : '/dashboard'} replace />
+                  : <Register onRegister={handleRegister} />
+              }
+            />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+
           </Routes>
         </main>
 

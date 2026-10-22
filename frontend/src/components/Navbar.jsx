@@ -13,22 +13,33 @@ export default function Navbar({ currentUser, onLogout, unreadCount = 0 }) {
     }
   }
 
+  const homePage = !currentUser
+    ? '/login'
+    : currentUser.role === 'Administrator'
+      ? '/admin'
+      : '/dashboard'
+
   return (
     <header className="navbar">
       <div className="navbar-inner">
-        <Link className="navbar-brand" to="/dashboard" aria-label="QueueSmart home">
+        <Link className="navbar-brand" to={homePage} aria-label="QueueSmart home">
           <h2>QueueSmart</h2>
         </Link>
 
         <nav className="navbar-links" aria-label="Main navigation">
-          <NavLink to="/dashboard">Dashboard</NavLink>
-          <NavLink to="/join-queue">Join Queue</NavLink>
-          <NavLink to="/queue-status">Queue Status</NavLink>
-          <NavLink to="/history">History</NavLink>
 
-          <NavLink to="/notifications">
-            Notifications{unreadCount > 0 && ` (${unreadCount})`}
-          </NavLink>
+          {currentUser?.role === 'User' && (
+            <>
+              <NavLink to="/dashboard">Dashboard</NavLink>
+              <NavLink to="/join-queue">Join Queue</NavLink>
+              <NavLink to="/queue-status">Queue Status</NavLink>
+              <NavLink to="/history">History</NavLink>
+
+              <NavLink to="/notifications">
+                Notifications{unreadCount > 0 && ` (${unreadCount})`}
+              </NavLink>
+            </>
+          )}
 
           {currentUser?.role === 'Administrator' && (
             <>
@@ -51,6 +62,7 @@ export default function Navbar({ currentUser, onLogout, unreadCount = 0 }) {
               >
                 Log out
               </button>
+
               {logoutError && <span role="alert">{logoutError}</span>}
             </>
           ) : (

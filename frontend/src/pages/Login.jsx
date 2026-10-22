@@ -14,7 +14,7 @@ export default function Login({ onLogin }) {
 		setSubmitting(true)
 		try {
 			const result = await onLogin({ email, password })
-			navigate(result.user.role === 'Administrator' ? '/admin' : '/join-queue')
+			navigate(result.user.role === 'Administrator' ? '/admin' : '/dashboard')
 		} catch (requestError) {
 			setError(requestError.message || 'Unable to log in. Please try again.')
 		} finally {
