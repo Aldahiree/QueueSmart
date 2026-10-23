@@ -321,7 +321,7 @@ function App() {
               path="/admin/services"
               element={
                 <AdminOnly currentUser={currentUser}>
-                  <ServiceManagement />
+                  <ServiceManagement token={session?.token} />
                 </AdminOnly>
               }
             />

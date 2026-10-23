@@ -1,52 +1,91 @@
-import { useState } from 'react'
-import { services as mockServices } from '../data/mockData'
+import { useEffect, useState } from 'react'
+import {
+  createService,
+  getServices,
+  setServiceStatus,
+  updateService,
+} from '../api/services'
 import './Admin.css'
 
-function ServiceManagement() {
-  const [services, setServices] = useState(mockServices)
+function ServiceManagement({ token }) {
+  const [services, setServices] = useState([])
 
   const[name, setName] = useState('')
   const[description, setDescription] = useState('')
   const[duration, setDuration] = useState('')
   const[priority, setPriority] = useState('Low')
-  const[editIndex, setEditIndex] = useState(null)
+  const[editId, setEditId] = useState(null)
+  const[error, setError] = useState('')
+  const[loading, setLoading] = useState(true)
 
-  function handleSubmit(event) {
+  //load the services from the backend
+  useEffect(() => {
+    if (!token) return
+
+    getServices(token)
+      .then((data) => setServices(data.services))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [token])
+
+  function resetForm() {
+    setName('')
+    setDescription('')
+    setDuration('')
+    setPriority('Low')
+    setEditId(null)
+  }
+
+  async function handleSubmit(event) {
     event.preventDefault()
+    setError('')
+
     const service = {
       name: name,
       description: description,
-      duration: duration,
+      duration: Number(duration),
       priority: priority
-  }
-  if(editIndex === null) {
-    setServices([...services, service])
-  } else {
-    const updateServices = [...services]
-    updateServices[editIndex] = service
-    setServices(updateServices)
-    setEditIndex(null)
-  }
-  setName('')
-  setDescription('')
-  setDuration('')
-  setPriority('Low')
+    }
 
-
+    try {
+      if (editId === null) {
+        const data = await createService(token, service)
+        setServices([...services, data.service])
+      } else {
+        const data = await updateService(token, editId, service)
+        setServices(services.map((s) => s.id === editId ? data.service : s))
+      }
+      resetForm()
+    } catch (err) {
+      setError(err.message)
+    }
   }
-  function editService(index) {
-    const service = services[index]
+
+  function editService(service) {
     setName(service.name)
     setDescription(service.description)
     setDuration(service.duration)
     setPriority(service.priority)
-    setEditIndex(index)
+    setEditId(service.id)
+  }
+
+  //admin opens or closes a service
+  async function toggleStatus(service) {
+    setError('')
+    try {
+      const data = await setServiceStatus(token, service.id, !service.isOpen)
+      setServices(services.map((s) => s.id === service.id ? data.service : s))
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   return(
     <div className='admin-page'>
       <h1>Service Management</h1>
       <p>Create a new service or edit an existing one.</p>
+
+      {error && <p className='empty-message' role='alert'>{error}</p>}
 
       <form className='service-form' onSubmit={handleSubmit}>
         <label>Service Name</label>
@@ -63,6 +102,7 @@ function ServiceManagement() {
         <textarea
         value={description}
         onChange={(event) => setDescription(event.target.value)}
+        maxLength="500"
         placeholder="Describe the service"
         required
         />
@@ -73,6 +113,7 @@ function ServiceManagement() {
         value={duration}
         onChange={(event) => setDuration(event.target.value)}
         min="1"
+        max="480"
         placeholder='Example: 15'
         required
         />
@@ -87,17 +128,24 @@ function ServiceManagement() {
         </select>
 
         <button type="submit">
-          {editIndex === null
+          {editId === null
           ? 'Create service'
           : 'Save changes'}
         </button>
+        {editId !== null && (
+          <button type="button" onClick={resetForm}>
+            Cancel
+          </button>
+        )}
       </form>
 
       <h2>Current Services</h2>
 
+      {loading && <p className='empty-message'>Loading services...</p>}
+
       <div className='service-list'>
-        {services.map((service, index) => (
-          <div className='service-card' key={index}>
+        {services.map((service) => (
+          <div className='service-card' key={service.id}>
             <h3>{service.name}</h3>
 
             <p>{service.description}</p>
@@ -108,8 +156,14 @@ function ServiceManagement() {
               <p>
                 Priority: <strong>{service.priority}</strong>
               </p>
-              <button onClick={() => editService(index)}>
+              <p>
+                Status: <strong>{service.isOpen ? 'Open' : 'Closed'}</strong>
+              </p>
+              <button onClick={() => editService(service)}>
                 Edit
+              </button>
+              <button onClick={() => toggleStatus(service)}>
+                {service.isOpen ? 'Close service' : 'Open service'}
               </button>
           </div>
         ))}
