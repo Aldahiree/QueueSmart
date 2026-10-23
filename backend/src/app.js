@@ -5,6 +5,12 @@ import { createQueueService } from './queueService.js'
 import { createQueueRoutes } from './queueRoutes.js'
 import { createServiceService } from './serviceService.js'
 import { createServiceRoutes } from './serviceRoutes.js'
+import { createNotificationService } from './notificationService.js'
+import { createHistoryService } from './historyService.js'
+import { withQueueActivity } from './queueActivity.js'
+import { createNotificationRoutes } from './notificationRoutes.js'
+import { createHistoryRoutes } from './historyRoutes.js'
+import { createDashboardRoutes } from './dashboardRoutes.js'
 
 function authenticationRequired(authService) {
   return (request, response, next) => {
@@ -76,8 +82,16 @@ export function createApp({ authService, frontendOrigin } = {}) {
   //create the service management system
   const serviceService = createServiceService()
 
-  //create the queue system
-  const queueService = createQueueService()
+  //Person 4 - notification and history stores
+  const notificationService = createNotificationService()
+  const historyService = createHistoryService()
+
+  //create the queue system, wrapped so Person 4 can react to join/leave/serve
+  const queueService = withQueueActivity(createQueueService(), {
+    notificationService,
+    historyService,
+    getService: (id) => serviceService.getService(id)
+  })
 
   //connect the service routes with the existing login system
   app.use('/api/services', requireAuthentication, createServiceRoutes({
@@ -89,6 +103,18 @@ export function createApp({ authService, frontendOrigin } = {}) {
   app.use('/api/queues', requireAuthentication, createQueueRoutes({
     queueService,
     getService: (id) => serviceService.getService(id)
+  }))
+
+  //Person 4 - notifications, history and the admin dashboard
+  app.use('/api/notifications', requireAuthentication, createNotificationRoutes({
+    notificationService
+  }))
+  app.use('/api/history', requireAuthentication, createHistoryRoutes({
+    historyService
+  }))
+  app.use('/api/dashboard', requireAuthentication, createDashboardRoutes({
+    serviceService,
+    queueService
   }))
 
 
