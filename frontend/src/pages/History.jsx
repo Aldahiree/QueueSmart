@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './QueueTracking.css'
 
-const OUTCOMES = ['Served', 'Left queue', 'Missed turn']
+const OUTCOMES = ['Joined', 'Served', 'Left queue']
 
 function formatDate(date) {
   return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {

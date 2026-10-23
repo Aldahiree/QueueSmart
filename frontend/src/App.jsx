@@ -1,13 +1,16 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
 import { loginAccount, logoutAccount, registerAccount } from './api/auth'
-
 import {
-  services,
-  notifications as mockNotifications,
-  history as mockHistory
-} from './data/mockData'
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  clearNotifications,
+} from './api/notifications'
+import { getHistory } from './api/history'
+
+import { services } from './data/mockData'
 
 import Navbar from './components/Navbar'
 import Toasts from './components/Toasts'
@@ -51,8 +54,9 @@ function App() {
   // Current queue the user is in
   const [activeQueue, setActiveQueue] = useState(null)
 
-  const [notifications, setNotifications] = useState(mockNotifications)
-  const [history, setHistory] = useState(mockHistory)
+  // Notifications and history now come from the backend (Person 4 APIs)
+  const [notifications, setNotifications] = useState([])
+  const [history, setHistory] = useState([])
   const [toasts, setToasts] = useState([])
   const nextId = useRef(1000)
 
@@ -66,14 +70,9 @@ function App() {
     setToasts((existing) => existing.filter((toast) => toast.id !== id))
   }
 
-  // Adds the notification to the list and shows a pop-up
-  function notify(message) {
+  // Shows a short-lived pop-up. The lasting record lives in the backend notifications.
+  function showToast(message) {
     const id = nextId.current++
-
-    setNotifications((existing) => [
-      { id, message, read: false },
-      ...existing
-    ])
 
     setToasts((existing) => [
       ...existing,
@@ -83,42 +82,56 @@ function App() {
     setTimeout(() => dismissToast(id), 5000)
   }
 
-  function addHistory(serviceName, outcome) {
-    const entry = {
-      id: nextId.current++,
-      serviceName: serviceName,
-      date: new Date().toLocaleDateString('en-CA'),
-      outcome: outcome
+  // Pull the latest notifications and history for the signed-in user
+  const refreshActivity = useCallback(async (token) => {
+    if (!token) {
+      return
     }
 
-    setHistory((existing) => [entry, ...existing])
-  }
+    try {
+      const [notificationData, historyData] = await Promise.all([
+        getNotifications(token),
+        getHistory(token),
+      ])
+      setNotifications(notificationData.notifications)
+      setHistory(historyData.history)
+    } catch (error) {
+      // keep whatever we already have if the server is unreachable
+    }
+  }, [])
+
+  // Load (or clear) activity whenever the session changes
+  useEffect(() => {
+    if (session?.token && session.user?.role === 'User') {
+      refreshActivity(session.token)
+    } else {
+      setNotifications([])
+      setHistory([])
+    }
+  }, [session, refreshActivity])
 
   //update the user's queue after joining
   function handleJoinQueue(serviceId, position) {
     const service = services.find((service) => service.id === serviceId)
-
-    if (!service) {
-      return
-    }
 
     setActiveQueue({
       serviceId: serviceId,
       position: position
     })
 
-    notify(`You joined the ${service.name} queue.`)
+    showToast(service ? `You joined the ${service.name} queue.` : 'You joined the queue.')
+    refreshActivity(session?.token)
   }
 
   //update the user's queue after leaving
   function handleLeaveQueue() {
-    if (!activeQueue || !activeService) {
+    if (!activeQueue) {
       return
     }
 
-    addHistory(activeService.name, 'Left queue')
-    notify(`You left the ${activeService.name} queue.`)
+    showToast(activeService ? `You left the ${activeService.name} queue.` : 'You left the queue.')
     setActiveQueue(null)
+    refreshActivity(session?.token)
   }
 
   //leave the queue from the queue status page
@@ -140,14 +153,14 @@ function App() {
 
       if (!response.ok) {
         const data = await response.json()
-        notify(data.message || 'Could not leave the queue.')
+        showToast(data.message || 'Could not leave the queue.')
         return
       }
 
       handleLeaveQueue()
 
     } catch (error) {
-      notify('Could not connect to the server.')
+      showToast('Could not connect to the server.')
     }
   }
 
@@ -173,7 +186,12 @@ function App() {
     })
   }, [])
 
-  function handleMarkRead(id) {
+  async function handleMarkRead(id) {
+    if (!session?.token) {
+      return
+    }
+
+    // update the view right away, then persist to the backend
     setNotifications((existing) =>
       existing.map((notification) =>
         notification.id === id
@@ -181,15 +199,45 @@ function App() {
           : notification
       )
     )
+
+    try {
+      await markNotificationRead(session.token, id)
+    } catch (error) {
+      showToast('Could not update the notification.')
+    }
   }
 
-  function handleMarkAllRead() {
+  async function handleMarkAllRead() {
+    if (!session?.token) {
+      return
+    }
+
     setNotifications((existing) =>
       existing.map((notification) => ({
         ...notification,
         read: true
       }))
     )
+
+    try {
+      await markAllNotificationsRead(session.token)
+    } catch (error) {
+      showToast('Could not update the notifications.')
+    }
+  }
+
+  async function handleClearNotifications() {
+    if (!session?.token) {
+      return
+    }
+
+    setNotifications([])
+
+    try {
+      await clearNotifications(session.token)
+    } catch (error) {
+      showToast('Could not clear the notifications.')
+    }
   }
 
   async function handleRegister(credentials) {
@@ -302,7 +350,7 @@ function App() {
                     notifications={notifications}
                     onMarkRead={handleMarkRead}
                     onMarkAllRead={handleMarkAllRead}
-                    onClear={() => setNotifications([])}
+                    onClear={handleClearNotifications}
                   />
                 </UserOnly>
               }
@@ -312,7 +360,7 @@ function App() {
               path="/admin"
               element={
                 <AdminOnly currentUser={currentUser}>
-                  <AdminDashboard />
+                  <AdminDashboard token={session?.token} />
                 </AdminOnly>
               }
             />

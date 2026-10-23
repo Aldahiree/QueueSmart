@@ -1,27 +1,50 @@
-import { useState } from 'react'
-import { services as mockServices } from '../data/mockData'
+import { useEffect, useState } from 'react'
+import { getDashboard } from '../api/dashboard'
+import { setServiceStatus } from '../api/services'
 import './Admin.css'
 
-function AdminDashboard() {
-  const [services, setServices] = useState(mockServices)
+function AdminDashboard({ token }) {
+  const [services, setServices] = useState([])
+  const [error, setError] = useState('')
 
-  function changeStatus(id) {                  //this function changes the service status by taking the id from the mock data as a parameter
-    const updateServices = services.map((service)=>{
-      if(service.id === id){
-        return { ...service, isOpen: !service.isOpen }
-      }
-      return service
-    })
-    setServices(updateServices)
+  //load the live dashboard (services + queue counts) from the backend
+  async function loadDashboard() {
+    try {
+      const data = await getDashboard(token)
+      setServices(data.services)
+      setError('')
+    } catch (err) {
+      setError(err.message || 'Could not load the dashboard.')
+    }
   }
-  return(
+
+  useEffect(() => {
+    if (token) {
+      loadDashboard()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
+
+  //open or close a service, then refresh the counts
+  async function changeStatus(id, isOpen) {
+    try {
+      await setServiceStatus(token, id, !isOpen)
+      await loadDashboard()
+    } catch (err) {
+      setError(err.message || 'Could not update the service.')
+    }
+  }
+
+  return (
     <div className="admin-page">
       <h1>Admin Dashboard</h1>
       <p>View services and change availability.</p>
 
+      {error && <p role="alert">{error}</p>}
+
       <div className="service-list">
-        {services.map((service)=> (
-          <div className="service-card" key = {service.id}>
+        {services.map((service) => (
+          <div className="service-card" key={service.id}>
             <h2>{service.name}</h2>
 
             <p>
@@ -33,18 +56,14 @@ function AdminDashboard() {
             </p>
 
             {/* button to change the service status */}
-            <button onClick={() => changeStatus(service.id)}>
-              {service.isOpen
-              ? 'Close Queue'
-              : 'Open Queue'}
+            <button onClick={() => changeStatus(service.id, service.isOpen)}>
+              {service.isOpen ? 'Close Queue' : 'Open Queue'}
             </button>
           </div>
-        )
-        )}
+        ))}
       </div>
     </div>
   )
 }
 
 export default AdminDashboard
-
