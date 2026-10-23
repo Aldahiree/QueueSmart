@@ -3,6 +3,8 @@ import express from 'express'
 import { AuthError } from './authService.js'
 import { createQueueService } from './queueService.js'
 import { createQueueRoutes } from './queueRoutes.js'
+import { createServiceService } from './serviceService.js'
+import { createServiceRoutes } from './serviceRoutes.js'
 
 function authenticationRequired(authService) {
   return (request, response, next) => {
@@ -71,20 +73,22 @@ export function createApp({ authService, frontendOrigin } = {}) {
   })
 
 
-  //temporary services until person 2 finishes the service management part
-  const services = new Map([
-    ['1', { id: '1', name: 'Academic Advising', isOpen: true }],
-    ['2', { id: '2', name: 'Financial Aid', isOpen: true }],
-    ['3', { id: '3', name: 'IT Help Desk', isOpen: false }]
-  ])
+  //create the service management system
+  const serviceService = createServiceService()
 
   //create the queue system
   const queueService = createQueueService()
 
-  //connect my queue routes with the existing login system
+  //connect the service routes with the existing login system
+  app.use('/api/services', requireAuthentication, createServiceRoutes({
+    serviceService,
+    queueService
+  }))
+
+  //connect the queue routes and use the real services
   app.use('/api/queues', requireAuthentication, createQueueRoutes({
     queueService,
-    getService: (id) => services.get(String(id))
+    getService: (id) => serviceService.getService(id)
   }))
 
 
