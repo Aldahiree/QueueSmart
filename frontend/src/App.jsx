@@ -1,5 +1,4 @@
-
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
 import { loginAccount, logoutAccount, registerAccount } from './api/auth'
@@ -10,7 +9,6 @@ import {
   history as mockHistory
 } from './data/mockData'
 
-import { getStatus } from './utils/queueStatus'
 import Navbar from './components/Navbar'
 import Toasts from './components/Toasts'
 
@@ -153,32 +151,27 @@ function App() {
     }
   }
 
-  // Simulates the queue moving forward since there is no backend yet
-  function handleAdvanceQueue() {
-    if (!activeQueue || !activeService || activeQueue.position <= 0) {
-      return
-    }
-
-    const oldStatus = getStatus(activeQueue.position)
-    const newPosition = activeQueue.position - 1
-    const newStatus = getStatus(newPosition)
-
-    setActiveQueue({
-      ...activeQueue,
-      position: newPosition
-    })
-
-    if (newStatus === 'served') {
-      addHistory(activeService.name, 'Served')
-      notify(`It is now your turn. You are being served at ${activeService.name}.`)
-    } else {
-      notify(`You moved up to position ${newPosition}.`)
-
-      if (newStatus !== oldStatus) {
-        notify(`Status changed: You are almost ready for ${activeService.name}.`)
+  //update the user's position from the backend
+  const handleQueueStatusChange = useCallback((data) => {
+    setActiveQueue((current) => {
+      if (!current || String(current.serviceId) !== String(data.serviceId)) {
+        return current
       }
-    }
-  }
+
+      if (data.status === 'not_in_queue') {
+        return null
+      }
+
+      if (current.position === data.position) {
+        return current
+      }
+
+      return {
+        ...current,
+        position: data.position
+      }
+    })
+  }, [])
 
   function handleMarkRead(id) {
     setNotifications((existing) =>
@@ -284,7 +277,8 @@ function App() {
                 <UserOnly currentUser={currentUser}>
                   <QueueStatus
                     activeQueue={activeQueue}
-                    onAdvance={handleAdvanceQueue}
+                    token={session?.token}
+                    onStatusChange={handleQueueStatusChange}
                     onLeave={handleLeaveFromStatus}
                   />
                 </UserOnly>

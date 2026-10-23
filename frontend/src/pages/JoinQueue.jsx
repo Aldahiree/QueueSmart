@@ -64,7 +64,7 @@ export default function JoinQueue({ activeQueue, onJoin, onLeave, token }) {
         queueLength: data.queueLength
       })
 
-      onJoin?.(Number(selectedId))
+      onJoin?.(Number(selectedId), data.position)
 
       setMessage(`You joined the ${selected.name} queue.`)
 

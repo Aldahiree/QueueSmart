@@ -1,6 +1,7 @@
 export function createQueueService() {
 
     const queues = new Map()
+    const servedUsers = new Map()
     let nextOrder = 0
 
 
@@ -12,6 +13,7 @@ export function createQueueService() {
             .sort((a, b) => b.priority - a.priority || a.order - b.order)
             .map((entry, index) => ({
                 userId: entry.userId,
+                name: entry.name,
                 serviceId: entry.serviceId,
                 joinedAt: entry.joinedAt,
                 priority: entry.priority,
@@ -20,8 +22,46 @@ export function createQueueService() {
     }
 
 
+    //get the user's current position and status
+    function getUserStatus(serviceId, userId) {
+        const id = String(serviceId)
+        const user = String(userId)
+        const queue = getQueue(id)
+
+        const entry = queue.find(
+            entry => entry.userId === user
+        )
+
+        if (entry) {
+            return {
+                serviceId: id,
+                status: 'waiting',
+                position: entry.position,
+                queueLength: queue.length
+            }
+        }
+
+        //check if the user was already served
+        if (servedUsers.get(id)?.has(user)) {
+            return {
+                serviceId: id,
+                status: 'served',
+                position: 0,
+                queueLength: queue.length
+            }
+        }
+
+        return {
+            serviceId: id,
+            status: 'not_in_queue',
+            position: null,
+            queueLength: queue.length
+        }
+    }
+
+
     //add the user to the queue
-    function joinQueue(serviceId, userId, isOpen, priority = 0) {
+    function joinQueue(serviceId, userId, isOpen, priority = 0, name = '') {
 
         const id = String(serviceId)
         const user = String(userId)
@@ -36,10 +76,17 @@ export function createQueueService() {
         if (queue.some(entry => entry.userId === user)) {
             return { error: "You are already in this queue.", status: 409 }
         }
+        //check if the user is waiting in another service
+        for (const [otherId, otherQueue] of queues) {
+        if (otherId !== id && otherQueue.some(entry => entry.userId === user)) {
+        return { error: "You are already waiting in another queue.", status: 409 }
+    }
+}
 
         const entry = {
             serviceId: id,
             userId: user,
+            name: name,
             joinedAt: new Date().toISOString(),
             priority: Number.isFinite(priority) ? priority : 0,
             order: nextOrder++
@@ -48,7 +95,12 @@ export function createQueueService() {
         queue.push(entry)
         queues.set(id, queue)
 
-        const position = getQueue(id).find(entry => entry.userId === user)
+        //clear the old served status if the user joins again
+        servedUsers.get(id)?.delete(user)
+
+        const position = getQueue(id).find(
+            entry => entry.userId === user
+        )
 
         return {
             message: "You joined the queue.",
@@ -84,7 +136,8 @@ export function createQueueService() {
     //get the next person waiting and remove them from the queue
     function serveNext(serviceId) {
 
-        const queue = getQueue(serviceId)
+        const id = String(serviceId)
+        const queue = getQueue(id)
 
         if (queue.length === 0) {
             return { error: "The queue is empty.", status: 409 }
@@ -92,18 +145,25 @@ export function createQueueService() {
 
         const nextUser = queue[0]
 
-        leaveQueue(serviceId, nextUser.userId)
+        leaveQueue(id, nextUser.userId)
+
+        //remember which user was served
+        const served = servedUsers.get(id) || new Set()
+
+        served.add(nextUser.userId)
+        servedUsers.set(id, served)
 
         return {
             message: "The next user is being served.",
             user: nextUser,
-            queue: getQueue(serviceId)
+            queue: getQueue(id)
         }
     }
 
 
     return {
         getQueue,
+        getUserStatus,
         joinQueue,
         leaveQueue,
         serveNext

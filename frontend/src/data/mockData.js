@@ -1,7 +1,7 @@
 export const services = [
   { id: 1, name: 'Academic Advising', description: 'Meet with an advisor', duration: 15, priority: 'Medium', queueLength: 3, isOpen: true },
   { id: 2, name: 'Financial Aid', description: 'Help with aid and billing', duration: 20, priority: 'High', queueLength: 2, isOpen: true },
-  { id: 3, name: 'IT Help Desk', description: 'Tech and account support', duration: 10, priority: 'Low', queueLength: 2, isOpen: false },
+  { id: 3, name: 'IT Help Desk', description: 'Tech and account support', duration: 10, priority: 'Low', queueLength: 2, isOpen: true },
 ]
 
 export const queues = {

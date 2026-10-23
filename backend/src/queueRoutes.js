@@ -57,7 +57,8 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
             request.params.serviceId,
             request.user.id,
             isOpen,
-            priority
+            priority,
+            request.user.name
         )
 
         return sendResult(response, result, 201)
@@ -79,6 +80,32 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
         )
 
         return sendResult(response, result)
+    })
+
+
+    //let users check their own queue status
+    router.get('/:serviceId/status', (request, response) => {
+
+        if (request.user.role !== 'User') {
+            return response.status(403).json({
+                message: 'Only users can check their queue status.'
+            })
+        }
+
+        const service = getService(request.params.serviceId)
+
+        if (!service) {
+            return response.status(404).json({
+                message: 'Service not found.'
+            })
+        }
+
+        const result = queueService.getUserStatus(
+            request.params.serviceId,
+            request.user.id
+        )
+
+        return response.json(result)
     })
 
 

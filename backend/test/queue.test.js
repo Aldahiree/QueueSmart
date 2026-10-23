@@ -101,3 +101,33 @@ test('each service has its own queue', () => {
     assert.equal(service.getQueue(1)[0].userId, 'user1')
     assert.equal(service.getQueue(2)[0].userId, 'user2')
 })
+
+//check if the position changes after serving someone
+test('user position updates after serving the first user', () => {
+    const service = createQueueService()
+
+    service.joinQueue(1, 'user1', true)
+    service.joinQueue(1, 'user2', true)
+
+    const before = service.getUserStatus(1, 'user2')
+
+    assert.equal(before.position, 2)
+
+    service.serveNext(1)
+
+    const after = service.getUserStatus(1, 'user2')
+
+    assert.equal(after.position, 1)
+    assert.equal(service.getUserStatus(1, 'user1').status, 'served')
+})
+//check that a user cannot join two different queues
+test('user cannot join two services at once', () => {
+    const service = createQueueService()
+
+    service.joinQueue(1, 'user1', true)
+
+    const result = service.joinQueue(2, 'user1', true)
+
+    assert.equal(result.status, 409)
+    assert.equal(service.getQueue(2).length, 0)
+})
