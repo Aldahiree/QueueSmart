@@ -1,26 +1,105 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { services } from '../data/mockData'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
 export default function JoinQueue({ activeQueue, onJoin, onLeave, token }) {
+  const [services, setServices] = useState([])
   const [selectedId, setSelectedId] = useState('')
   const [error, setError] = useState('')
+  const [serviceError, setServiceError] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingServices, setLoadingServices] = useState(true)
   const [joinedQueue, setJoinedQueue] = useState(null)
   const [queueInfo, setQueueInfo] = useState(null)
+  const [refresh, setRefresh] = useState(0)
 
   const joinedId = activeQueue?.serviceId ?? joinedQueue
 
-  const openServices = services.filter((s) => s.isOpen)
-  const selected = services.find((s) => s.id === Number(joinedId ?? selectedId))
-  const joined = services.find((s) => s.id === Number(joinedId))
+  const openServices = services.filter(
+    (service) => service.isOpen || String(service.id) === String(joinedId)
+  )
 
-  const waitTime = selected && queueInfo
-    ? Math.max(0, queueInfo.position - 1) * selected.duration
+  const selected = services.find(
+    (service) => String(service.id) === String(joinedId ?? selectedId)
+  )
+
+  const joined = services.find(
+    (service) => String(service.id) === String(joinedId)
+  )
+
+  const position = activeQueue?.position ?? queueInfo?.position
+
+  const waitTime = selected && position > 0
+    ? Math.max(0, position - 1) * selected.duration
     : null
+
+
+  //load the actual services from the backend
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadServices() {
+      if (!token) {
+        setServices([])
+        setServiceError('Please log in to view services.')
+        setLoadingServices(false)
+        return
+      }
+
+      setLoadingServices(true)
+      setServiceError('')
+
+      try {
+        const response = await fetch(`${API_URL}/api/services`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Could not load services.')
+        }
+
+        if (!cancelled) {
+          const list = Array.isArray(data.services) ? data.services : []
+
+          setServices(list)
+
+          setSelectedId((current) => {
+            if (!current) return ''
+
+            const exists = list.some(
+              (service) => String(service.id) === String(current)
+            )
+
+            return exists ? current : ''
+          })
+        }
+
+      } catch (error) {
+        if (!cancelled) {
+          setServices([])
+          setServiceError(error.message)
+        }
+
+      } finally {
+        if (!cancelled) {
+          setLoadingServices(false)
+        }
+      }
+    }
+
+    loadServices()
+
+    return () => {
+      cancelled = true
+    }
+
+  }, [token, refresh])
 
 
   //join the selected queue
@@ -37,6 +116,11 @@ export default function JoinQueue({ activeQueue, onJoin, onLeave, token }) {
 
     if (!token) {
       setError('Please log in before joining a queue.')
+      return
+    }
+
+    if (!selected?.isOpen) {
+      setError('This service is currently closed.')
       return
     }
 
@@ -59,6 +143,7 @@ export default function JoinQueue({ activeQueue, onJoin, onLeave, token }) {
       }
 
       setJoinedQueue(Number(selectedId))
+
       setQueueInfo({
         position: data.position,
         queueLength: data.queueLength
@@ -119,6 +204,14 @@ export default function JoinQueue({ activeQueue, onJoin, onLeave, token }) {
   }
 
 
+  //refresh the service list
+  function refreshServices() {
+    setError('')
+    setMessage('')
+    setRefresh((value) => value + 1)
+  }
+
+
   return (
     <div className="page-container">
       <h1>Join a Queue</h1>
@@ -135,22 +228,49 @@ export default function JoinQueue({ activeQueue, onJoin, onLeave, token }) {
             setSelectedId(e.target.value)
             setError('')
           }}
-          disabled={joinedId != null || loading}
+          disabled={joinedId != null || loading || loadingServices}
         >
           <option value="">Choose a service</option>
 
-          {openServices.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
+          {openServices.map((service) => (
+            <option key={service.id} value={service.id}>
+              {service.name}
             </option>
           ))}
         </select>
 
-        {error && <p style={{ color: '#c0392b' }}>{error}</p>}
+        {loadingServices && (
+          <p>Loading services...</p>
+        )}
+
+        {serviceError && (
+          <p style={{ color: '#c0392b' }}>{serviceError}</p>
+        )}
+
+        {!loadingServices && !serviceError && openServices.length === 0 && (
+          <p>No services are currently open.</p>
+        )}
+
+        <button
+          type="button"
+          onClick={refreshServices}
+          disabled={loadingServices || loading}
+        >
+          Refresh Services
+        </button>
+
+        {error && (
+          <p style={{ color: '#c0392b' }}>{error}</p>
+        )}
 
         {selected && (
           <div>
             <p>{selected.description}</p>
+
+            <p>
+              <strong>Service Status:</strong>{' '}
+              {selected.isOpen ? 'Open' : 'Closed'}
+            </p>
 
             <p>
               <strong>People in line:</strong>{' '}
@@ -176,7 +296,10 @@ export default function JoinQueue({ activeQueue, onJoin, onLeave, token }) {
             </button>
           </>
         ) : (
-          <button onClick={handleJoin} disabled={loading}>
+          <button
+            onClick={handleJoin}
+            disabled={loading || loadingServices || !selected?.isOpen}
+          >
             {loading ? 'Joining...' : 'Join Queue'}
           </button>
         )}

@@ -1,35 +1,106 @@
 import { useEffect, useState } from 'react'
-import { services } from '../data/mockData'
 import './Admin.css'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
 function QueueManagement({ token }) {
-  const [selectedServices, setSelectedServices] = useState(services[0].name)
+  const [services, setServices] = useState([])
+  const [selectedServiceId, setSelectedServiceId] = useState('')
   const [queue, setQueue] = useState([])
+
+  const [loadingServices, setLoadingServices] = useState(true)
   const [loading, setLoading] = useState(false)
   const [serving, setServing] = useState(false)
+
+  const [serviceError, setServiceError] = useState('')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [refresh, setRefresh] = useState(0)
 
   const selectedService = services.find(
-    (service) => service.name === selectedServices
+    (service) => String(service.id) === String(selectedServiceId)
   )
 
 
-  //load the queue from the backend
+  //load the actual services from the backend
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadServices() {
+      if (!token) {
+        setServices([])
+        setSelectedServiceId('')
+        setLoadingServices(false)
+        setServiceError('Please log in as an administrator.')
+        return
+      }
+
+      setLoadingServices(true)
+      setServiceError('')
+
+      try {
+        const response = await fetch(`${API_URL}/api/services`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Could not load services.')
+        }
+
+        if (!cancelled) {
+          const list = Array.isArray(data.services) ? data.services : []
+
+          setServices(list)
+
+          setSelectedServiceId((current) => {
+            const exists = list.some(
+              (service) => String(service.id) === String(current)
+            )
+
+            return exists ? current : String(list[0]?.id ?? '')
+          })
+        }
+
+      } catch (error) {
+        if (!cancelled) {
+          setServices([])
+          setSelectedServiceId('')
+          setServiceError(error.message)
+        }
+
+      } finally {
+        if (!cancelled) {
+          setLoadingServices(false)
+        }
+      }
+    }
+
+    loadServices()
+
+    return () => {
+      cancelled = true
+    }
+
+  }, [token, refresh])
+
+
+  //load the selected queue from the backend
   useEffect(() => {
     let cancelled = false
 
     async function loadQueue() {
-      if (!token) {
+      if (!token || !selectedService) {
         setQueue([])
-        setError('Please log in as an administrator.')
+        setLoading(false)
         return
       }
 
       setLoading(true)
+      setQueue([])
       setError('')
 
       try {
@@ -71,12 +142,12 @@ function QueueManagement({ token }) {
       cancelled = true
     }
 
-  }, [selectedServices, selectedService?.id, token, refresh])
+  }, [selectedServiceId, token, refresh])
 
 
   //serve the first user waiting in the queue
   async function serveNext() {
-    if (queue.length === 0 || serving) {
+    if (!selectedService || queue.length === 0 || serving) {
       return
     }
 
@@ -113,7 +184,7 @@ function QueueManagement({ token }) {
   }
 
 
-  //refresh the waiting list
+  //refresh both the services and waiting list
   function refreshQueue() {
     setMessage('')
     setRefresh((value) => value + 1)
@@ -132,25 +203,50 @@ function QueueManagement({ token }) {
         <label>Choose Service</label>
 
         <select
-          value={selectedServices}
+          value={selectedServiceId}
+          disabled={loadingServices || serving}
           onChange={(event) => {
-            setSelectedServices(event.target.value)
+            setSelectedServiceId(event.target.value)
             setMessage('')
+            setError('')
           }}
         >
+          {services.length === 0 && (
+            <option value="">No services available</option>
+          )}
+
           {services.map((service) => (
-            <option key={service.id} value={service.name}>
+            <option key={service.id} value={service.id}>
               {service.name}
             </option>
           ))}
         </select>
       </div>
 
-      <h2>{selectedServices} Queue</h2>
+      {loadingServices && (
+        <p>Loading services...</p>
+      )}
 
-      <p>
-        People Waiting: <strong>{queue.length}</strong>
-      </p>
+      {serviceError && (
+        <p style={{ color: '#c0392b' }}>{serviceError}</p>
+      )}
+
+      {selectedService && (
+        <>
+          <h2>{selectedService.name} Queue</h2>
+
+          <p>
+            Service Status:{' '}
+            <strong>
+              {selectedService.isOpen ? 'Open' : 'Closed'}
+            </strong>
+          </p>
+
+          <p>
+            People Waiting: <strong>{queue.length}</strong>
+          </p>
+        </>
+      )}
 
       {error && (
         <p style={{ color: '#c0392b' }}>{error}</p>
@@ -162,18 +258,21 @@ function QueueManagement({ token }) {
 
       <button
         onClick={serveNext}
-        disabled={queue.length === 0 || loading || serving}
+        disabled={!selectedService || queue.length === 0 || loading || serving}
       >
         {serving ? 'Serving...' : 'Serve Next User'}
       </button>
 
-      <button onClick={refreshQueue} disabled={loading}>
+      <button
+        onClick={refreshQueue}
+        disabled={loading || loadingServices || serving}
+      >
         Refresh Queue
       </button>
 
       {loading ? (
         <p>Loading queue...</p>
-      ) : queue.length > 0 ? (
+      ) : selectedService && queue.length > 0 ? (
         <table className='queue-table'>
           <thead>
             <tr>
