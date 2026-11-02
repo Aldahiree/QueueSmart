@@ -13,7 +13,7 @@ import { createHistoryRoutes } from './historyRoutes.js'
 import { createDashboardRoutes } from './dashboardRoutes.js'
 
 function authenticationRequired(authService) {
-  return (request, response, next) => {
+  return async (request, response, next) => {
     const authorization = request.get('authorization') ?? ''
     const match = /^Bearer\s+(\S+)$/.exec(authorization)
 
@@ -21,7 +21,7 @@ function authenticationRequired(authService) {
       return response.status(401).json({ message: 'Authentication required.' })
     }
 
-    const user = authService.getUserForToken(match[1])
+    const user = await authService.getUserForToken(match[1])
     if (!user) {
       return response.status(401).json({ message: 'Session is invalid or expired.' })
     }
@@ -71,6 +71,16 @@ export function createApp({ authService, frontendOrigin } = {}) {
   const requireAuthentication = authenticationRequired(authService)
   app.get('/api/auth/me', requireAuthentication, (request, response) => {
     response.json({ user: request.user })
+  })
+
+  app.get('/api/auth/profile', requireAuthentication, async (request, response) => {
+    const profile = await authService.getProfile(request.user.id)
+    response.json({ profile })
+  })
+
+  app.put('/api/auth/profile', requireAuthentication, async (request, response) => {
+    const profile = await authService.updateProfile(request.user.id, request.body)
+    response.json({ profile })
   })
 
   app.post('/api/auth/logout', requireAuthentication, (request, response) => {

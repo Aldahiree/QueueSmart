@@ -4,7 +4,11 @@ import {
   timingSafeEqual,
 } from 'node:crypto'
 import { promisify } from 'node:util'
-import { validateLogin, validateRegistration } from './validation.js'
+import {
+  validateLogin,
+  validateProfile,
+  validateRegistration,
+} from './validation.js'
 
 const scrypt = promisify(scryptCallback)
 const PASSWORD_KEY_LENGTH = 64
@@ -31,9 +35,39 @@ function publicUser(user) {
   }
 }
 
-export function createAuthService() {
+function createInMemoryUserRepository() {
   const usersByEmail = new Map()
   const usersById = new Map()
+
+  return {
+    async createUser(user) {
+      if (usersByEmail.has(user.email)) {
+        const error = new Error('Duplicate email address.')
+        error.code = 'ER_DUP_ENTRY'
+        throw error
+      }
+      usersByEmail.set(user.email, user)
+      usersById.set(user.id, user)
+      return user
+    },
+    async findByEmail(email) {
+      return usersByEmail.get(email) ?? null
+    },
+    async findById(id) {
+      return usersById.get(id) ?? null
+    },
+    async updateProfileName(id, name) {
+      const user = usersById.get(id)
+      if (!user) {
+        return null
+      }
+      user.name = name
+      return user
+    },
+  }
+}
+
+export function createAuthService({ userRepository = createInMemoryUserRepository() } = {}) {
   const sessions = new Map()
   const dummySalt = randomBytes(16).toString('hex')
   const dummyHash = hashPassword('not-a-real-account-password', dummySalt)
@@ -42,25 +76,25 @@ export function createAuthService() {
     const normalizedEmail = email.trim().toLowerCase()
     const salt = randomBytes(16).toString('hex')
     const passwordHash = await hashPassword(password, salt)
-    if (usersByEmail.has(normalizedEmail)) {
-      throw new AuthError(409, 'An account with this email already exists.')
-    }
 
-    const user = {
-      id: randomBytes(16).toString('hex'),
-      name: name.trim(),
-      email: normalizedEmail,
-      role,
-      salt,
-      passwordHash,
+    try {
+      return await userRepository.createUser({
+        id: randomBytes(16).toString('hex'),
+        name: name.trim(),
+        email: normalizedEmail,
+        role,
+        salt,
+        passwordHash,
+      })
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new AuthError(409, 'An account with this email already exists.')
+      }
+      throw error
     }
-
-    usersByEmail.set(user.email, user)
-    usersById.set(user.id, user)
-    return user
   }
 
-  function createSession(user) {
+  async function createSession(user) {
     const token = randomBytes(32).toString('base64url')
     sessions.set(token, user.id)
     return { token, user: publicUser(user) }
@@ -89,10 +123,8 @@ export function createAuthService() {
       }
 
       const email = input.email.trim().toLowerCase()
-      const user = usersByEmail.get(email)
-      const expectedHash = user
-        ? user.passwordHash
-        : await dummyHash
+      const user = await userRepository.findByEmail(email)
+      const expectedHash = user ? user.passwordHash : await dummyHash
       const salt = user ? user.salt : dummySalt
       const actualHash = await hashPassword(input.password, salt)
       const hashesMatch = timingSafeEqual(
@@ -107,10 +139,34 @@ export function createAuthService() {
       return createSession(user)
     },
 
-    getUserForToken(token) {
+    async getUserForToken(token) {
       const userId = sessions.get(token)
-      const user = userId ? usersById.get(userId) : undefined
+      const user = userId ? await userRepository.findById(userId) : null
+      if (!user) {
+        sessions.delete(token)
+      }
       return user ? publicUser(user) : null
+    },
+
+    async getProfile(userId) {
+      const user = await userRepository.findById(userId)
+      if (!user) {
+        throw new AuthError(404, 'User profile was not found.')
+      }
+      return publicUser(user)
+    },
+
+    async updateProfile(userId, input) {
+      const errors = validateProfile(input)
+      if (Object.keys(errors).length > 0) {
+        throw new AuthError(400, 'Check the profile details and try again.', errors)
+      }
+
+      const user = await userRepository.updateProfileName(userId, input.name.trim())
+      if (!user) {
+        throw new AuthError(404, 'User profile was not found.')
+      }
+      return publicUser(user)
     },
 
     revokeToken(token) {
@@ -125,6 +181,15 @@ export function createAuthService() {
       })
       if (Object.keys(errors).length > 0) {
         throw new Error(`Invalid administrator configuration: ${JSON.stringify(errors)}`)
+      }
+
+      const normalizedEmail = email.trim().toLowerCase()
+      const existing = await userRepository.findByEmail(normalizedEmail)
+      if (existing) {
+        if (existing.role !== 'Administrator') {
+          throw new Error('The configured administrator email belongs to a non-administrator account.')
+        }
+        return
       }
 
       await addUser({

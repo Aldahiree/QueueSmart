@@ -47,3 +47,15 @@ export function validateLogin(input) {
 
   return errors
 }
+
+export function validateProfile(input) {
+  if (!isRecord(input)) {
+    return { name: 'Provide your name.' }
+  }
+
+  const name = typeof input.name === 'string' ? input.name.trim() : ''
+  if (name.length < 2 || name.length > 80) {
+    return { name: 'Name must be between 2 and 80 characters.' }
+  }
+  return {}
+}
