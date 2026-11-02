@@ -28,6 +28,8 @@ export default function Navbar({ currentUser, onLogout, unreadCount = 0 }) {
 
         <nav className="navbar-links" aria-label="Main navigation">
 
+          {currentUser && <NavLink to="/profile">Profile</NavLink>}
+
           {currentUser?.role === 'User' && (
             <>
               <NavLink to="/dashboard">Dashboard</NavLink>

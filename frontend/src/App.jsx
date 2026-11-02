@@ -25,6 +25,7 @@ import NotificationsPage from './pages/NotificationsPage'
 import AdminDashboard from './pages/AdminDashboard'
 import ServiceManagement from './pages/ServiceManagement'
 import QueueManagement from './pages/QueueManagement'
+import Profile from './pages/Profile'
 
 function AdminOnly({ currentUser, children }) {
   if (!currentUser) {
@@ -265,6 +266,12 @@ function App() {
     }
   }
 
+  function handleProfileUpdated(profile) {
+    setSession((current) => current
+      ? { ...current, user: profile }
+      : current)
+  }
+
   return (
     <BrowserRouter>
       <div className="app-shell">
@@ -302,6 +309,15 @@ function App() {
                     notifications={notifications}
                   />
                 </UserOnly>
+              }
+            />
+
+            <Route
+              path="/profile"
+              element={
+                currentUser
+                  ? <Profile token={session.token} onProfileUpdated={handleProfileUpdated} />
+                  : <Navigate to="/login" replace />
               }
             />
 
