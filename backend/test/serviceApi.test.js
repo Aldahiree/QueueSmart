@@ -174,3 +174,29 @@ test('user gets a wait time after joining a queue', async () => {
     assert.equal(data.position, 1)
     assert.equal(data.waitMinutes, 0)
 })
+
+//check that a duplicate service name returns 409
+test('creating a service with a taken name returns 409', async () => {
+    const response = await request('/api/services', {
+        method: 'POST',
+        token: adminToken,
+        body: { name: 'Academic Advising', description: 'Again', duration: 10, priority: 'Low' }
+    })
+
+    assert.equal(response.status, 409)
+})
+
+
+//check that admins can see a service's queue history
+test('admin can list the queues for a service', async () => {
+    await request('/api/services/3/status', { method: 'PATCH', token: adminToken, body: { isOpen: true } })
+    await request('/api/services/3/status', { method: 'PATCH', token: adminToken, body: { isOpen: false } })
+
+    const response = await request('/api/services/3/queues', { token: adminToken })
+    const data = await response.json()
+    const forbidden = await request('/api/services/3/queues', { token: userToken })
+
+    assert.equal(response.status, 200)
+    assert.equal(data.queues[0].status, 'closed')
+    assert.equal(forbidden.status, 403)
+})

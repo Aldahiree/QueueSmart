@@ -11,8 +11,8 @@ export function withQueueActivity(queueService, { notificationService, historySe
   // so each user hears "almost up" (pos 2) and "you're next" (pos 1) at most once each.
   const notifiedByService = new Map()
 
-  function serviceName(serviceId) {
-    const service = getService?.(serviceId)
+  async function serviceName(serviceId) {
+    const service = await getService?.(serviceId)
     return service?.name ?? 'the service'
   }
 
@@ -25,8 +25,8 @@ export function withQueueActivity(queueService, { notificationService, historySe
   }
 
   // after any change to a queue, notify users who just got closer to the front
-  function notifyNearFront(serviceId) {
-    const queue = queueService.getQueue(serviceId)
+  async function notifyNearFront(serviceId) {
+    const queue = await queueService.getQueue(serviceId)
     const notified = notifiedMap(serviceId)
     const stillWaiting = new Set(queue.map((entry) => entry.userId))
 
@@ -37,7 +37,7 @@ export function withQueueActivity(queueService, { notificationService, historySe
       }
     }
 
-    const name = serviceName(serviceId)
+    const name = await serviceName(serviceId)
     for (const entry of queue) {
       if (entry.position > NEAR_FRONT_POSITION) {
         continue
@@ -60,41 +60,41 @@ export function withQueueActivity(queueService, { notificationService, historySe
   return {
     ...queueService,
 
-    joinQueue(serviceId, userId, isOpen, priority = 0, name = '') {
-      const result = queueService.joinQueue(serviceId, userId, isOpen, priority, name)
+    async joinQueue(serviceId, userId, isOpen, priority = 0, name = '') {
+      const result = await queueService.joinQueue(serviceId, userId, isOpen, priority, name)
 
       if (!result.error) {
-        const service = serviceName(serviceId)
+        const service = await serviceName(serviceId)
         historyService.record({ userId, serviceId, serviceName: service, outcome: 'Joined' })
         notificationService.add(userId, `You joined the ${service} queue.`)
-        notifyNearFront(serviceId)
+        await notifyNearFront(serviceId)
       }
 
       return result
     },
 
-    leaveQueue(serviceId, userId) {
-      const service = serviceName(serviceId) // capture before the entry is gone
-      const result = queueService.leaveQueue(serviceId, userId)
+    async leaveQueue(serviceId, userId) {
+      const service = await serviceName(serviceId) // capture before the entry is gone
+      const result = await queueService.leaveQueue(serviceId, userId)
 
       if (!result.error) {
         historyService.record({ userId, serviceId, serviceName: service, outcome: 'Left queue' })
         notificationService.add(userId, `You left the ${service} queue.`)
-        notifyNearFront(serviceId) // people behind them may now be close
+        await notifyNearFront(serviceId) // people behind them may now be close
       }
 
       return result
     },
 
-    serveNext(serviceId) {
-      const service = serviceName(serviceId)
-      const result = queueService.serveNext(serviceId)
+    async serveNext(serviceId) {
+      const service = await serviceName(serviceId)
+      const result = await queueService.serveNext(serviceId)
 
       if (!result.error && result.user) {
         const servedUserId = result.user.userId
         historyService.record({ userId: servedUserId, serviceId, serviceName: service, outcome: 'Served' })
         notificationService.add(servedUserId, `It's your turn at ${service} - you're being served now.`)
-        notifyNearFront(serviceId) // the next person is now at the front
+        await notifyNearFront(serviceId) // the next person is now at the front
       }
 
       return result

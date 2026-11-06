@@ -7,15 +7,15 @@ import { buildDashboard } from '../src/dashboardRoutes.js'
 
 
 // the dashboard lists every service with its live queue length
-test('dashboard reports queue length per service', () => {
+test('dashboard reports queue length per service', async () => {
   const serviceService = createServiceService()
   const queueService = createQueueService()
 
   // service 1 is open (seeded), put two people in its queue
-  queueService.joinQueue(1, 'user1', true)
-  queueService.joinQueue(1, 'user2', true)
+  await queueService.joinQueue(1, 'user1', true)
+  await queueService.joinQueue(1, 'user2', true)
 
-  const dashboard = buildDashboard({ serviceService, queueService })
+  const dashboard = await buildDashboard({ serviceService, queueService })
   const serviceOne = dashboard.services.find((service) => service.id === 1)
 
   assert.equal(serviceOne.queueLength, 2)
@@ -24,11 +24,11 @@ test('dashboard reports queue length per service', () => {
 
 
 // totals summarise the services
-test('dashboard totals count services and open ones', () => {
+test('dashboard totals count services and open ones', async () => {
   const serviceService = createServiceService()
   const queueService = createQueueService()
 
-  const dashboard = buildDashboard({ serviceService, queueService })
+  const dashboard = await buildDashboard({ serviceService, queueService })
 
   // seed data has 3 services, 2 open (IT Help Desk starts closed)
   assert.equal(dashboard.totals.serviceCount, 3)
@@ -38,11 +38,11 @@ test('dashboard totals count services and open ones', () => {
 
 
 // each dashboard service keeps the fields the frontend card needs
-test('dashboard services expose name, status and queue length', () => {
+test('dashboard services expose name, status and queue length', async () => {
   const serviceService = createServiceService()
   const queueService = createQueueService()
 
-  const dashboard = buildDashboard({ serviceService, queueService })
+  const dashboard = await buildDashboard({ serviceService, queueService })
   const service = dashboard.services[0]
 
   assert.ok('name' in service)

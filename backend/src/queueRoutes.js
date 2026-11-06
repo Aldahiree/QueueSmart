@@ -31,7 +31,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
 
 
     //let a user join a queue
-    router.post('/:serviceId/join', (request, response) => {
+    router.post('/:serviceId/join', async (request, response) => {
 
         if (request.user.role !== 'User') {
             return response.status(403).json({
@@ -39,7 +39,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
             })
         }
 
-        const service = getService(request.params.serviceId)
+        const service = await getService(request.params.serviceId)
 
         if (!service) {
             return response.status(404).json({
@@ -53,7 +53,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
 
         const priority = getPriority(request.user, service)
 
-        const result = queueService.joinQueue(
+        const result = await queueService.joinQueue(
             request.params.serviceId,
             request.user.id,
             isOpen,
@@ -66,7 +66,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
 
 
     //let a user leave their queue
-    router.post('/:serviceId/leave', (request, response) => {
+    router.post('/:serviceId/leave', async (request, response) => {
 
         if (request.user.role !== 'User') {
             return response.status(403).json({
@@ -74,7 +74,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
             })
         }
 
-        const result = queueService.leaveQueue(
+        const result = await queueService.leaveQueue(
             request.params.serviceId,
             request.user.id
         )
@@ -84,7 +84,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
 
 
     //let users check their own queue status
-    router.get('/:serviceId/status', (request, response) => {
+    router.get('/:serviceId/status', async (request, response) => {
 
         if (request.user.role !== 'User') {
             return response.status(403).json({
@@ -92,7 +92,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
             })
         }
 
-        const service = getService(request.params.serviceId)
+        const service = await getService(request.params.serviceId)
 
         if (!service) {
             return response.status(404).json({
@@ -100,7 +100,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
             })
         }
 
-        const result = queueService.getUserStatus(
+        const result = await queueService.getUserStatus(
             request.params.serviceId,
             request.user.id
         )
@@ -110,9 +110,9 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
 
 
     //allow an admin to see everyone waiting
-    router.get('/:serviceId', adminOnly, (request, response) => {
+    router.get('/:serviceId', adminOnly, async (request, response) => {
 
-        const service = getService(request.params.serviceId)
+        const service = await getService(request.params.serviceId)
 
         if (!service) {
             return response.status(404).json({
@@ -120,7 +120,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
             })
         }
 
-        const queue = queueService.getQueue(request.params.serviceId)
+        const queue = await queueService.getQueue(request.params.serviceId)
 
         return response.json({
             serviceId: request.params.serviceId,
@@ -131,9 +131,9 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
 
 
     //admin serves the next user in the queue
-    router.post('/:serviceId/next', adminOnly, (request, response) => {
+    router.post('/:serviceId/next', adminOnly, async (request, response) => {
 
-        const service = getService(request.params.serviceId)
+        const service = await getService(request.params.serviceId)
 
         if (!service) {
             return response.status(404).json({
@@ -141,7 +141,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
             })
         }
 
-        const result = queueService.serveNext(request.params.serviceId)
+        const result = await queueService.serveNext(request.params.serviceId)
 
         return sendResult(response, result)
     })

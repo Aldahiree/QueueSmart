@@ -4,11 +4,12 @@ import { Router } from 'express'
 // so administrators can see service statuses and how many people are waiting.
 
 // Pure helper so the logic can be unit tested without starting a server.
-export function buildDashboard({ serviceService, queueService }) {
-  const services = serviceService.listServices().map((service) => ({
-    ...service,
-    queueLength: queueService.getQueue(service.id).length,
-  }))
+export async function buildDashboard({ serviceService, queueService }) {
+  const services = []
+  for (const service of await serviceService.listServices()) {
+    const queue = await queueService.getQueue(service.id)
+    services.push({ ...service, queueLength: queue.length })
+  }
 
   const totals = {
     serviceCount: services.length,
@@ -31,8 +32,8 @@ export function createDashboardRoutes({ serviceService, queueService }) {
     next()
   }
 
-  router.get('/', adminOnly, (request, response) => {
-    return response.json(buildDashboard({ serviceService, queueService }))
+  router.get('/', adminOnly, async (request, response) => {
+    return response.json(await buildDashboard({ serviceService, queueService }))
   })
 
   return router

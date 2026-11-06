@@ -27,10 +27,10 @@ function setup() {
 
 
 // joining records history and a confirmation notification
-test('joining a queue records history and notifies the user', () => {
+test('joining a queue records history and notifies the user', async () => {
   const { queueService, notificationService, historyService } = setup()
 
-  queueService.joinQueue('1', 'user1', true)
+  await queueService.joinQueue('1', 'user1', true)
 
   const history = historyService.list('user1')
   assert.equal(history[0].outcome, 'Joined')
@@ -42,11 +42,11 @@ test('joining a queue records history and notifies the user', () => {
 
 
 // leaving records history and a notification
-test('leaving a queue records history and notifies the user', () => {
+test('leaving a queue records history and notifies the user', async () => {
   const { queueService, historyService, notificationService } = setup()
 
-  queueService.joinQueue('1', 'user1', true)
-  queueService.leaveQueue('1', 'user1')
+  await queueService.joinQueue('1', 'user1', true)
+  await queueService.leaveQueue('1', 'user1')
 
   assert.equal(historyService.list('user1')[0].outcome, 'Left queue')
   assert.ok(notificationService.list('user1').some((n) => n.message.includes('left the Advising queue')))
@@ -54,11 +54,11 @@ test('leaving a queue records history and notifies the user', () => {
 
 
 // a user at the front is told they are close to being served
-test('the next user is notified they are close to being served', () => {
+test('the next user is notified they are close to being served', async () => {
   const { queueService, notificationService } = setup()
 
-  queueService.joinQueue('1', 'user1', true)
-  queueService.joinQueue('1', 'user2', true)
+  await queueService.joinQueue('1', 'user1', true)
+  await queueService.joinQueue('1', 'user2', true)
 
   // user2 starts at position 2 and should be warned they are close
   assert.ok(
@@ -69,13 +69,13 @@ test('the next user is notified they are close to being served', () => {
 
 
 // serving records a 'Served' outcome and notifies, and moves the next user up
-test('serving the next user records history and advances the queue', () => {
+test('serving the next user records history and advances the queue', async () => {
   const { queueService, notificationService, historyService } = setup()
 
-  queueService.joinQueue('1', 'user1', true)
-  queueService.joinQueue('1', 'user2', true)
+  await queueService.joinQueue('1', 'user1', true)
+  await queueService.joinQueue('1', 'user2', true)
 
-  const result = queueService.serveNext('1')
+  const result = await queueService.serveNext('1')
   assert.equal(result.user.userId, 'user1')
 
   assert.equal(historyService.list('user1')[0].outcome, 'Served')
@@ -87,10 +87,10 @@ test('serving the next user records history and advances the queue', () => {
 
 
 // a closed service does not create notifications or history
-test('a failed join does not record anything', () => {
+test('a failed join does not record anything', async () => {
   const { queueService, notificationService, historyService } = setup()
 
-  const result = queueService.joinQueue('1', 'user1', false) // closed
+  const result = await queueService.joinQueue('1', 'user1', false) // closed
 
   assert.equal(result.status, 409)
   assert.equal(historyService.list('user1').length, 0)
