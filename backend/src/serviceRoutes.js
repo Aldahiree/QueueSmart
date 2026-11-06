@@ -34,14 +34,14 @@ export function createServiceRoutes({ serviceService, queueService }) {
 
 
     //anyone logged in can see the list of services
-    router.get('/', (request, response) => {
-        return response.json({ services: serviceService.listServices() })
+    router.get('/', async (request, response) => {
+        return response.json({ services: await serviceService.listServices() })
     })
 
 
     //anyone logged in can see one service
-    router.get('/:id', (request, response) => {
-        const service = serviceService.getService(request.params.id)
+    router.get('/:id', async (request, response) => {
+        const service = await serviceService.getService(request.params.id)
 
         if (!service) {
             return response.status(404).json({
@@ -54,29 +54,36 @@ export function createServiceRoutes({ serviceService, queueService }) {
 
 
     //admin creates a new service
-    router.post('/', adminOnly, (request, response) => {
-        const result = serviceService.createService(request.body)
+    router.post('/', adminOnly, async (request, response) => {
+        const result = await serviceService.createService(request.body)
         return sendResult(response, result, 201)
     })
 
 
     //admin updates a service
-    router.put('/:id', adminOnly, (request, response) => {
-        const result = serviceService.updateService(request.params.id, request.body)
+    router.put('/:id', adminOnly, async (request, response) => {
+        const result = await serviceService.updateService(request.params.id, request.body)
+        return sendResult(response, result)
+    })
+
+
+    //admin sees every queue a service has had (open and closed)
+    router.get('/:id/queues', adminOnly, async (request, response) => {
+        const result = await serviceService.listQueues(request.params.id)
         return sendResult(response, result)
     })
 
 
     //admin opens or closes a service
-    router.patch('/:id/status', adminOnly, (request, response) => {
-        const result = serviceService.setServiceStatus(request.params.id, request.body?.isOpen)
+    router.patch('/:id/status', adminOnly, async (request, response) => {
+        const result = await serviceService.setServiceStatus(request.params.id, request.body?.isOpen)
         return sendResult(response, result)
     })
 
 
     //user checks their estimated wait time
-    router.get('/:id/wait-time', (request, response) => {
-        const service = serviceService.getService(request.params.id)
+    router.get('/:id/wait-time', async (request, response) => {
+        const service = await serviceService.getService(request.params.id)
 
         if (!service) {
             return response.status(404).json({
@@ -84,7 +91,7 @@ export function createServiceRoutes({ serviceService, queueService }) {
             })
         }
 
-        const status = queueService.getUserStatus(request.params.id, request.user.id)
+        const status = await queueService.getUserStatus(request.params.id, request.user.id)
 
         if (status.status !== 'waiting') {
             return response.status(404).json({

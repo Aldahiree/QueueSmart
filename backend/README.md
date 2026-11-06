@@ -125,3 +125,39 @@ all local database data, remove the named volume separately with
 The schema file is applied automatically only when the MySQL data volume is
 first created. For subsequent schema changes, apply a migration to the existing
 database instead of expecting the initialization script to run again.
+
+
+## Services and queues (Person 2)
+
+Services and queues are stored in MySQL in the `Service` and `Queue` tables
+defined in [`sql/schema.sql`](./sql/schema.sql).
+
+- `Service`: primary key `id`, unique `name`, `description`,
+  `duration_minutes` (CHECK 1 to 480), and `priority` (`Low`/`Medium`/`High`).
+- `Queue`: primary key `id`, foreign key `service_id` to `Service.id`,
+  `status` (`open`/`closed`), `created_at`, and `closed_at`. A stored generated
+  column with a unique key allows only one open queue per service.
+
+Opening a service inserts a new open `Queue` row. Closing it marks that row
+closed, so past queues are kept as history. `isOpen` in API responses comes
+from whether the service has an open queue, and `queueId` is the id of that
+open queue (Person 3 can use it for `QueueEntry.queue_id`).
+
+If your MySQL volume was created before these tables existed, the schema file
+will not run again on its own. Either reset the volume with
+`docker compose --env-file backend\.env down -v` and start it again, or load
+the new tables into the running container:
+
+```powershell
+Get-Content backend\sql\schema.sql | docker compose --env-file backend\.env exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
+```
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/services` | List services with open status |
+| `GET` | `/api/services/:id` | Get one service |
+| `POST` | `/api/services` | Admin creates a service and opens its queue |
+| `PUT` | `/api/services/:id` | Admin edits a service |
+| `PATCH` | `/api/services/:id/status` | Admin opens or closes the service queue |
+| `GET` | `/api/services/:id/queues` | Admin views open and closed queues |
+| `GET` | `/api/services/:id/wait-time` | User checks estimated wait |

@@ -2,6 +2,7 @@ import { createApp } from './app.js'
 import { createAuthService } from './authService.js'
 import { createDatabasePool } from './database.js'
 import { createMySqlUserRepository } from './mysqlUserRepository.js'
+import { createMySqlServiceRepository } from './mysqlServiceRepository.js'
 
 const port = Number(process.env.PORT ?? 3001)
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -25,6 +26,7 @@ if (adminEmail && adminPassword) {
 
 const app = createApp({
   authService,
+  serviceRepository: createMySqlServiceRepository(database),
   frontendOrigin: process.env.FRONTEND_ORIGIN,
 })
 

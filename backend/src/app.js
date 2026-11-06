@@ -32,7 +32,7 @@ function authenticationRequired(authService) {
   }
 }
 
-export function createApp({ authService, frontendOrigin } = {}) {
+export function createApp({ authService, serviceRepository, frontendOrigin } = {}) {
   if (!authService) {
     throw new Error('An authentication service is required.')
   }
@@ -90,7 +90,7 @@ export function createApp({ authService, frontendOrigin } = {}) {
 
 
   //create the service management system
-  const serviceService = createServiceService()
+  const serviceService = createServiceService({ serviceRepository })
 
   //Person 4 - notification and history stores
   const notificationService = createNotificationService()
