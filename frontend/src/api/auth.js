@@ -41,3 +41,15 @@ export function loginAccount({ email, password }) {
 export function logoutAccount(token) {
   return request('/api/auth/logout', { method: 'POST', token })
 }
+
+export function getProfile(token) {
+  return request('/api/auth/profile', { token })
+}
+
+export function saveProfile(token, profile) {
+  return request('/api/auth/profile', {
+    method: 'PUT',
+    token,
+    body: JSON.stringify(profile),
+  })
+}

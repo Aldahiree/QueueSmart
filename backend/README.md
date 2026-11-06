@@ -1,59 +1,127 @@
-# QueueSmart backend
+# QueueSmart authentication and user profiles
 
-This is the Assignment 3 Express API for authentication. Users and login sessions
-are kept in server memory, so they are cleared when the server restarts. Passwords
-are stored as salted scrypt hashes; the original password is never returned.
+This backend connects the Assignment 3 Express API to MySQL. User accounts and
+profiles are stored in MySQL; passwords are stored as salted scrypt hashes.
+Session tokens remain in server memory and are revoked at logout or server
+restart.
 
-## Run locally (PowerShell)
+## 1. Prerequisites
 
-Open two terminals in the repository.
+- Node.js 22 or newer
+- Docker Desktop with Docker Compose
 
-In terminal 1, start the API:
+Run the following commands in PowerShell from the repository root.
+
+## 2. Configure MySQL and the API
 
 ```powershell
-cd "C:\Users\John\OneDrive\Desktop\COSC 4353\QueueSmart\backend"
+if (-not (Test-Path backend\.env)) {
+  Copy-Item backend\.env.example backend\.env
+}
+```
+
+Edit `backend\.env`. Set unique values for `DB_PASSWORD`,
+`MYSQL_ROOT_PASSWORD`, and `ADMIN_PASSWORD`. The configured administrator is
+created on API startup. Public registration always assigns the `User` role;
+clients cannot register as an administrator. If you already have a
+`backend\.env`, keep it and add any missing database settings from
+`backend\.env.example` rather than overwriting your existing configuration.
+
+## 3. Start MySQL
+
+```powershell
+docker compose --env-file backend\.env up -d --wait
+```
+
+Compose starts MySQL 8.4, creates the `queuesmart` database and application
+user, and loads [`sql/schema.sql`](./sql/schema.sql) to create the tables.
+MySQL data is kept in the named `queuesmart_mysql_data` volume across container
+restarts.
+
+The schema has two tables:
+
+- `UserCredentials`: primary key `id`, unique email, password salt/hash, and a
+  constrained `User`/`Administrator` role.
+- `UserProfile`: `user_id` is both its primary key and a foreign key to
+  `UserCredentials.id`; deleting credentials cascades to the profile.
+
+Registration inserts both rows in one transaction. Passwords never appear in
+API responses. Email addresses are normalized to lowercase and the unique
+constraint prevents duplicate accounts.
+
+## 4. Start the API and frontend
+
+In one PowerShell terminal:
+
+```powershell
+Set-Location backend
 npm.cmd install
-Copy-Item .env.example .env
-# Edit .env and replace the example administrator email and password.
 npm.cmd run dev
 ```
 
-The API listens on `http://localhost:3001`. The `.env` file is ignored by Git.
-The optional `ADMIN_EMAIL` and `ADMIN_PASSWORD` settings create one
-Administrator account when the server starts. Public registration always
-creates a `User` account, even if the request includes a `role` field.
-
-In terminal 2, run the UI:
+In a second terminal:
 
 ```powershell
-cd "C:\Users\John\OneDrive\Desktop\COSC 4353\QueueSmart\frontend"
+Set-Location frontend
 npm.cmd run dev
 ```
 
-Open the Vite URL shown in the terminal (normally `http://localhost:5173`).
-The UI calls the API at `http://localhost:3001`; set `VITE_API_URL` in the
-frontend environment if you run the API elsewhere.
+Open the Vite URL (normally `http://localhost:5173`). The frontend sends
+requests to `http://localhost:3001`; configure `VITE_API_URL` if the API runs
+elsewhere. The backend reads its database and administrator settings from
+`backend\.env`.
 
-## API
+## 5. Authentication and profile endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/health` | Check that the API is running |
-| `POST` | `/api/auth/register` | Create a User account and sign in |
-| `POST` | `/api/auth/login` | Sign in; returns a session token and public user |
-| `GET` | `/api/auth/me` | Get the signed-in user |
-| `POST` | `/api/auth/logout` | Revoke the current session token |
+| `GET` | `/api/health` | Check API availability |
+| `POST` | `/api/auth/register` | Register a regular user and create a session |
+| `POST` | `/api/auth/login` | Verify credentials and create a session |
+| `GET` | `/api/auth/me` | Return the authenticated user's public details |
+| `POST` | `/api/auth/logout` | Revoke the current session |
+| `GET` | `/api/auth/profile` | Retrieve the signed-in user's profile |
+| `PUT` | `/api/auth/profile` | Save the signed-in user's profile name |
 
-Send registration and login data as JSON. Authenticated endpoints require
-`Authorization: Bearer <token>`. Registration expects a 2–80 character name, a
-valid email, and a password of 8–128 characters. The Login and Register screens
-display server validation and authentication errors.
+Authenticated routes require `Authorization: Bearer <token>`. Registration
+requires a 2–80 character name, valid email, and 8–128 character password.
+Profile updates accept a 2–80 character `name`; email and role are read-only
+and cannot be changed through this endpoint.
 
-## Test
+Example profile update:
 
 ```powershell
+$token = "<token returned by login or registration>"
+Invoke-RestMethod `
+  -Method Put `
+  -Uri http://localhost:3001/api/auth/profile `
+  -Headers @{ Authorization = "Bearer $token" } `
+  -ContentType "application/json" `
+  -Body '{"name":"Alex Example"}'
+```
+
+## 6. Run tests
+
+```powershell
+Set-Location backend
 npm.cmd test
 ```
 
-These tests use Node's built-in test runner and make real HTTP requests to an
-ephemeral local Express server; no database or test database is needed.
+The API tests cover registration, duplicate emails, role restrictions, login,
+invalid registration/profile inputs, authentication, and profile retrieval and
+saving. They use the in-memory repository for isolation and do not require a
+running MySQL service; the running API uses the MySQL repository.
+
+## 7. Stop the database
+
+```powershell
+docker compose --env-file backend\.env down
+```
+
+This stops the container but preserves database data. To intentionally reset
+all local database data, remove the named volume separately with
+`docker compose --env-file backend\.env down -v`.
+
+The schema file is applied automatically only when the MySQL data volume is
+first created. For subsequent schema changes, apply a migration to the existing
+database instead of expecting the initialization script to run again.

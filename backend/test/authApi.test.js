@@ -106,6 +106,69 @@ test('registration reports field validation errors', async () => {
   assert.ok(result.errors.password)
 })
 
+test('authenticated users can retrieve and save their profile', async () => {
+  const registration = await request('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: 'Profile Owner',
+      email: 'profile@example.com',
+      password: 'valid-password',
+    }),
+  })
+  const session = await registration.json()
+
+  const initialProfile = await request('/api/auth/profile', { token: session.token })
+  assert.equal(initialProfile.status, 200)
+  assert.deepEqual((await initialProfile.json()).profile, {
+    id: session.user.id,
+    name: 'Profile Owner',
+    email: 'profile@example.com',
+    role: 'User',
+  })
+
+  const savedProfile = await request('/api/auth/profile', {
+    method: 'PUT',
+    token: session.token,
+    body: JSON.stringify({
+      name: '  Updated Owner  ',
+      email: 'changed@example.com',
+      role: 'Administrator',
+    }),
+  })
+  assert.equal(savedProfile.status, 200)
+  assert.deepEqual((await savedProfile.json()).profile, {
+    id: session.user.id,
+    name: 'Updated Owner',
+    email: 'profile@example.com',
+    role: 'User',
+  })
+
+  const currentUser = await request('/api/auth/me', { token: session.token })
+  assert.equal((await currentUser.json()).user.name, 'Updated Owner')
+})
+
+test('profile endpoints require authentication and validate profile names', async () => {
+  const unauthorized = await request('/api/auth/profile')
+  assert.equal(unauthorized.status, 401)
+
+  const registration = await request('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: 'Profile Owner',
+      email: 'invalid-profile@example.com',
+      password: 'valid-password',
+    }),
+  })
+  const session = await registration.json()
+  const invalid = await request('/api/auth/profile', {
+    method: 'PUT',
+    token: session.token,
+    body: JSON.stringify({ name: ' ' }),
+  })
+  assert.equal(invalid.status, 400)
+  assert.ok((await invalid.json()).errors.name)
+})
+
 test('administrator role is assigned only to the configured seed account', async () => {
   const login = await request('/api/auth/login', {
     method: 'POST',
