@@ -120,6 +120,39 @@ DEFAULT CHARSET=utf8mb4
 COLLATE=utf8mb4_0900_ai_ci;
 
 
+-- Person 4: Notifications and queue participation history
+-- One table holds both kinds of row, as described in the assignment
+-- (user ID, message, timestamp, and status). `kind` tells them apart:
+--   notification -> status is 'sent' or 'viewed'
+--   history      -> status is 'joined', 'left', or 'served'
+-- Deleting a user removes their rows; deleting a service keeps the history
+-- row but clears its service link.
+CREATE TABLE IF NOT EXISTS Notification (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id CHAR(32) NOT NULL,
+  kind ENUM('notification', 'history') NOT NULL DEFAULT 'notification',
+  message VARCHAR(500) NOT NULL,
+  status ENUM('sent', 'viewed', 'joined', 'left', 'served')
+    NOT NULL DEFAULT 'sent',
+  service_id INT UNSIGNED NULL DEFAULT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+
+  -- Reads are always "this user's rows of one kind, newest first".
+  KEY idx_notification_user_kind (user_id, kind, id),
+
+  -- Connect rows to Person 1's UserCredentials table.
+  CONSTRAINT fk_notification_user
+    FOREIGN KEY (user_id) REFERENCES UserCredentials (id)
+    ON DELETE CASCADE,
+
+  -- Connect history rows to Person 2's Service table.
+  CONSTRAINT fk_notification_service
+    FOREIGN KEY (service_id) REFERENCES Service (id)
+    ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
 -- Starting services, matching the A3 mock data
 INSERT IGNORE INTO Service (id, name, description, duration_minutes, priority) VALUES
   (1, 'Academic Advising', 'Meet with an advisor', 15, 'Medium'),

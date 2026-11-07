@@ -7,6 +7,9 @@ import { createMySqlServiceRepository } from './mysqlServiceRepository.js'
 // Person 3: QueueEntry database repository
 import { createMySqlQueueEntryRepository } from './mysqlQueueEntryRepository.js'
 
+// Person 4: Notification/History database repository
+import { createMySqlNotificationRepository } from './mysqlNotificationRepository.js'
+
 const port = Number(process.env.PORT ?? 3001)
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -42,6 +45,9 @@ const app = createApp({
 
   // Person 3: Connect queue entries to MySQL
   queueEntryRepository: createMySqlQueueEntryRepository(database),
+
+  // Person 4: Connect notifications and history to MySQL
+  notificationRepository: createMySqlNotificationRepository(database),
 
   frontendOrigin: process.env.FRONTEND_ORIGIN,
 })

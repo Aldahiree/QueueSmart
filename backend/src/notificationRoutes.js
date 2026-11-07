@@ -8,16 +8,16 @@ export function createNotificationRoutes({ notificationService }) {
   const router = Router()
 
   // the signed-in user's notifications, newest first
-  router.get('/', (request, response) => {
+  router.get('/', async (request, response) => {
     return response.json({
-      notifications: notificationService.list(request.user.id),
-      unreadCount: notificationService.unreadCount(request.user.id),
+      notifications: await notificationService.list(request.user.id),
+      unreadCount: await notificationService.unreadCount(request.user.id),
     })
   })
 
   // mark one notification as read
-  router.patch('/:id/read', (request, response) => {
-    const result = notificationService.markRead(request.user.id, request.params.id)
+  router.patch('/:id/read', async (request, response) => {
+    const result = await notificationService.markRead(request.user.id, request.params.id)
 
     if (result.error) {
       return response.status(result.status).json({ message: result.error })
@@ -27,14 +27,14 @@ export function createNotificationRoutes({ notificationService }) {
   })
 
   // mark every notification as read
-  router.post('/read-all', (request, response) => {
-    const updated = notificationService.markAllRead(request.user.id)
+  router.post('/read-all', async (request, response) => {
+    const updated = await notificationService.markAllRead(request.user.id)
     return response.json({ updated })
   })
 
   // clear all of the user's notifications
-  router.delete('/', (request, response) => {
-    notificationService.clear(request.user.id)
+  router.delete('/', async (request, response) => {
+    await notificationService.clear(request.user.id)
     return response.status(204).end()
   })
 

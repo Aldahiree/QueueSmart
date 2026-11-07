@@ -3,6 +3,7 @@
 // This WRAPS an existing queue service instead of changing it, so Person 3's
 // queueService.js stays untouched. join / leave / serveNext are intercepted to
 // record history and raise notifications; every other method passes straight through.
+// The stores are awaited because the running API writes them to the Notification table.
 
 const NEAR_FRONT_POSITION = 2 // "close to being served" means position 1 or 2
 
@@ -53,7 +54,7 @@ export function withQueueActivity(queueService, { notificationService, historySe
       const message = entry.position === 1
         ? `You're next in line for ${name}.`
         : `You're almost up for ${name} - ${entry.position - 1} ahead of you.`
-      notificationService.add(entry.userId, message)
+      await notificationService.add(entry.userId, message)
     }
   }
 
@@ -65,8 +66,8 @@ export function withQueueActivity(queueService, { notificationService, historySe
 
       if (!result.error) {
         const service = await serviceName(serviceId)
-        historyService.record({ userId, serviceId, serviceName: service, outcome: 'Joined' })
-        notificationService.add(userId, `You joined the ${service} queue.`)
+        await historyService.record({ userId, serviceId, serviceName: service, outcome: 'Joined' })
+        await notificationService.add(userId, `You joined the ${service} queue.`)
         await notifyNearFront(serviceId)
       }
 
@@ -78,8 +79,8 @@ export function withQueueActivity(queueService, { notificationService, historySe
       const result = await queueService.leaveQueue(serviceId, userId)
 
       if (!result.error) {
-        historyService.record({ userId, serviceId, serviceName: service, outcome: 'Left queue' })
-        notificationService.add(userId, `You left the ${service} queue.`)
+        await historyService.record({ userId, serviceId, serviceName: service, outcome: 'Left queue' })
+        await notificationService.add(userId, `You left the ${service} queue.`)
         await notifyNearFront(serviceId) // people behind them may now be close
       }
 
@@ -92,8 +93,8 @@ export function withQueueActivity(queueService, { notificationService, historySe
 
       if (!result.error && result.user) {
         const servedUserId = result.user.userId
-        historyService.record({ userId: servedUserId, serviceId, serviceName: service, outcome: 'Served' })
-        notificationService.add(servedUserId, `It's your turn at ${service} - you're being served now.`)
+        await historyService.record({ userId: servedUserId, serviceId, serviceName: service, outcome: 'Served' })
+        await notificationService.add(servedUserId, `It's your turn at ${service} - you're being served now.`)
         await notifyNearFront(serviceId) // the next person is now at the front
       }
 

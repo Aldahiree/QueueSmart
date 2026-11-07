@@ -161,3 +161,55 @@ Get-Content backend\sql\schema.sql | docker compose --env-file backend\.env exec
 | `PATCH` | `/api/services/:id/status` | Admin opens or closes the service queue |
 | `GET` | `/api/services/:id/queues` | Admin views open and closed queues |
 | `GET` | `/api/services/:id/wait-time` | User checks estimated wait |
+
+
+## Notifications and history (Person 4)
+
+Notifications and queue participation history are stored in MySQL in the
+`Notification` table defined in [`sql/schema.sql`](./sql/schema.sql). One table
+holds both kinds of row, as the assignment describes a single Notification/History
+table with a user ID, message, timestamp, and status:
+
+- `Notification`: primary key `id`, foreign key `user_id` to `UserCredentials.id`
+  (deleting a user removes their rows), `kind` (`notification`/`history`),
+  `message`, `status`, an optional foreign key `service_id` to `Service.id`, and
+  `created_at`.
+- For `kind = 'notification'`, `status` is `sent` or `viewed`.
+- For `kind = 'history'`, `status` is `joined`, `left`, or `served`, and
+  `service_id` links the row to the service so the History page can show its name.
+
+Rows are written automatically by the queue wrapper in `src/queueActivity.js`:
+joining saves a history row and a notification, being within two places of the
+front saves a "close to being served" notification, and leaving or being served
+saves the matching history row and notification. The API only ever returns the
+signed-in user's rows.
+
+If your MySQL volume was created before this table existed, load it the same way
+as the Person 2 tables (reset the volume, or pipe `sql/schema.sql` into the
+running container).
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/notifications` | List the signed-in user's notifications and unread count |
+| `PATCH` | `/api/notifications/:id/read` | Mark one notification as read |
+| `POST` | `/api/notifications/read-all` | Mark every notification as read |
+| `DELETE` | `/api/notifications` | Clear the signed-in user's notifications |
+| `GET` | `/api/history` | List the signed-in user's queue history |
+| `GET` | `/api/dashboard` | Admin: services with status and live queue length |
+
+### Integration tests and coverage
+
+`npm.cmd test` runs every unit and integration test with the in-memory
+repositories, so it does not need MySQL. `test/integration.test.js` also contains
+a MySQL persistence test that only runs when the database settings are available:
+
+```powershell
+Set-Location backend
+node --env-file=.env --test test/integration.test.js
+```
+
+Run the combined code coverage report with:
+
+```powershell
+npm.cmd run coverage
+```

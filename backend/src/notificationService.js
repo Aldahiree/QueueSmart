@@ -1,64 +1,69 @@
-// Person 4 - in-memory notification store.
+// Person 4 - notification service.
 //
 // Notifications are created by backend events (a user joining a queue, or a user
-// getting close to being served) and read back per user. The shape returned here
-// matches what the frontend expects: { id, message, read, createdAt }.
+// getting close to being served) and read back per user. Rows live in the
+// Notification table with kind = 'notification'. A repository is injected so the
+// unit tests use the in-memory version while the running API uses MySQL.
+// The shape returned here matches the frontend: { id, message, read, createdAt }.
 
-export function createNotificationService() {
-  const notificationsByUser = new Map() // userId -> array, newest first
-  let nextId = 1
+import { createInMemoryNotificationRepository } from './notificationRepository.js'
+
+function toNotification(row) {
+  return {
+    id: row.id,
+    message: row.message,
+    read: row.status === 'viewed',
+    createdAt: row.createdAt,
+  }
+}
+
+export function createNotificationService({ notificationRepository = createInMemoryNotificationRepository() } = {}) {
+  const repository = notificationRepository
 
   // store a new unread notification for a user
-  function add(userId, message) {
-    const key = String(userId)
-    const notification = {
-      id: nextId++,
+  async function add(userId, message) {
+    const row = await repository.insert({
+      userId,
+      kind: 'notification',
       message: String(message),
-      read: false,
-      createdAt: new Date().toISOString(),
-    }
-
-    const list = notificationsByUser.get(key) ?? []
-    list.unshift(notification)
-    notificationsByUser.set(key, list)
-
-    return notification
+      status: 'sent',
+    })
+    return toNotification(row)
   }
 
-  // return a copy of the user's notifications (newest first)
-  function list(userId) {
-    return [...(notificationsByUser.get(String(userId)) ?? [])]
+  // the user's notifications (newest first)
+  async function list(userId) {
+    const rows = await repository.listByUser(userId, 'notification')
+    return rows.map(toNotification)
   }
 
   // mark one notification as read
-  function markRead(userId, notificationId) {
-    const list = notificationsByUser.get(String(userId)) ?? []
-    const target = list.find((item) => item.id === Number(notificationId))
+  async function markRead(userId, notificationId) {
+    const id = Number(notificationId)
+    const row = Number.isInteger(id) && id > 0
+      ? await repository.markRead(userId, id)
+      : null
 
-    if (!target) {
+    if (!row) {
       return { error: 'Notification not found.', status: 404 }
     }
 
-    target.read = true
-    return target
+    return toNotification(row)
   }
 
-  // mark every notification for a user as read, returns how many existed
-  function markAllRead(userId) {
-    const list = notificationsByUser.get(String(userId)) ?? []
-    list.forEach((item) => { item.read = true })
-    return list.length
+  // mark every notification for a user as read, returns how many changed
+  async function markAllRead(userId) {
+    return repository.markAllRead(userId)
   }
 
   // remove all notifications for a user
-  function clear(userId) {
-    notificationsByUser.delete(String(userId))
+  async function clear(userId) {
+    await repository.clearNotifications(userId)
   }
 
   // how many unread notifications the user has
-  function unreadCount(userId) {
-    const list = notificationsByUser.get(String(userId)) ?? []
-    return list.filter((item) => !item.read).length
+  async function unreadCount(userId) {
+    return repository.countUnread(userId)
   }
 
   return { add, list, markRead, markAllRead, clear, unreadCount }
