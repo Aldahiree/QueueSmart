@@ -132,12 +132,54 @@ export function createMySqlServiceRepository(pool) {
     }
 
     async function closeQueue(serviceId) {
-        await pool.execute(
-            `UPDATE Queue SET status = 'closed', closed_at = CURRENT_TIMESTAMP
-             WHERE service_id = ? AND status = 'open'`,
+    const connection = await pool.getConnection()
+
+    try {
+        await connection.beginTransaction()
+
+        // Lock the open queue so nobody can join while it closes.
+        const [rows] = await connection.execute(
+            `SELECT id
+             FROM Queue
+             WHERE service_id = ?
+               AND status = 'open'
+             FOR UPDATE`,
             [serviceId]
         )
+
+        if (rows.length > 0) {
+            const queueId = rows[0].id
+
+            // Remove everyone still waiting.
+            await connection.execute(
+                `UPDATE QueueEntry
+                 SET status = 'left',
+                     finished_at = CURRENT_TIMESTAMP(3)
+                 WHERE queue_id = ?
+                   AND status = 'waiting'`,
+                [queueId]
+            )
+
+            // Close the queue.
+            await connection.execute(
+                `UPDATE Queue
+                 SET status = 'closed',
+                     closed_at = CURRENT_TIMESTAMP
+                 WHERE id = ?`,
+                [queueId]
+            )
+        }
+
+        await connection.commit()
+
+    } catch (error) {
+        await connection.rollback()
+        throw error
+
+    } finally {
+        connection.release()
     }
+}
 
     return {
         listServices,

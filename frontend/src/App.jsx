@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
+
 import { loginAccount, logoutAccount, registerAccount } from './api/auth'
+
 import {
   getNotifications,
   markNotificationRead,
   markAllNotificationsRead,
   clearNotifications,
 } from './api/notifications'
-import { getHistory } from './api/history'
 
+import { getHistory } from './api/history'
 import { services } from './data/mockData'
 
 import Navbar from './components/Navbar'
@@ -27,6 +29,10 @@ import ServiceManagement from './pages/ServiceManagement'
 import QueueManagement from './pages/QueueManagement'
 import Profile from './pages/Profile'
 
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+const SESSION_TOKEN_KEY = 'queuesmart_session_token'
+
+
 function AdminOnly({ currentUser, children }) {
   if (!currentUser) {
     return <Navigate to="/login" replace />
@@ -37,7 +43,8 @@ function AdminOnly({ currentUser, children }) {
     : <Navigate to="/dashboard" replace />
 }
 
-//only regular users can access these pages
+
+// Only regular users can access these pages
 function UserOnly({ currentUser, children }) {
   if (!currentUser) {
     return <Navigate to="/login" replace />
@@ -48,30 +55,56 @@ function UserOnly({ currentUser, children }) {
     : <Navigate to="/admin" replace />
 }
 
+
 function App() {
+
   const [session, setSession] = useState(null)
+
+  // Check whether we have a saved login session
+  const [checkingSession, setCheckingSession] = useState(
+    () => Boolean(sessionStorage.getItem(SESSION_TOKEN_KEY))
+  )
+
+  // Tracks whether the active queue has been loaded for this session
+  const [queueLoadedForToken, setQueueLoadedForToken] = useState(null)
+
   const currentUser = session?.user ?? null
 
   // Current queue the user is in
   const [activeQueue, setActiveQueue] = useState(null)
 
-  // Notifications and history now come from the backend (Person 4 APIs)
+  // Notifications and history from Person 4's backend APIs
   const [notifications, setNotifications] = useState([])
   const [history, setHistory] = useState([])
   const [toasts, setToasts] = useState([])
+
   const nextId = useRef(1000)
 
   const activeService = activeQueue &&
     services.find((service) => service.id === activeQueue.serviceId)
 
   const inQueue = activeQueue !== null && activeQueue.position > 0
-  const unreadCount = notifications.filter((notification) => !notification.read).length
 
+  const restoringQueue = Boolean(
+    session?.token &&
+    session.user?.role === 'User' &&
+    queueLoadedForToken !== session.token
+  )
+
+  const unreadCount = notifications.filter(
+    (notification) => !notification.read
+  ).length
+
+
+  // Remove a toast message
   function dismissToast(id) {
-    setToasts((existing) => existing.filter((toast) => toast.id !== id))
+    setToasts((existing) =>
+      existing.filter((toast) => toast.id !== id)
+    )
   }
 
-  // Shows a short-lived pop-up. The lasting record lives in the backend notifications.
+
+  // Display a temporary notification
   function showToast(message) {
     const id = nextId.current++
 
@@ -83,7 +116,8 @@ function App() {
     setTimeout(() => dismissToast(id), 5000)
   }
 
-  // Pull the latest notifications and history for the signed-in user
+
+  // Refresh notifications and history
   const refreshActivity = useCallback(async (token) => {
     if (!token) {
       return
@@ -94,56 +128,218 @@ function App() {
         getNotifications(token),
         getHistory(token),
       ])
+
       setNotifications(notificationData.notifications)
       setHistory(historyData.history)
+
     } catch (error) {
-      // keep whatever we already have if the server is unreachable
+      // Keep existing information if the server is unavailable
     }
   }, [])
 
-  // Load (or clear) activity whenever the session changes
+
+  // Person 3: Restore login after refreshing the browser
   useEffect(() => {
+
+    const token = sessionStorage.getItem(SESSION_TOKEN_KEY)
+
+    if (!token) {
+      setCheckingSession(false)
+      return
+    }
+
+    let cancelled = false
+
+    async function restoreSession() {
+      try {
+
+        // Verify the saved token with the backend
+        const response = await fetch(
+          `${API_URL}/api/auth/me`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        )
+
+        if (!response.ok) {
+
+          // Remove tokens rejected by the backend
+          if (response.status === 401 || response.status === 403) {
+            sessionStorage.removeItem(SESSION_TOKEN_KEY)
+          }
+
+          throw new Error('Could not restore your login session.')
+        }
+
+        const data = await response.json()
+
+        if (!cancelled) {
+          setSession({
+            token,
+            user: data.user
+          })
+        }
+
+      } catch (error) {
+
+        if (!cancelled) {
+          console.error(error)
+          setSession(null)
+        }
+
+      } finally {
+
+        if (!cancelled) {
+          setCheckingSession(false)
+        }
+      }
+    }
+
+    restoreSession()
+
+    return () => {
+      cancelled = true
+    }
+
+  }, [])
+
+
+  // Person 3: Restore the user's active queue from MySQL
+  useEffect(() => {
+
+    const token = session?.token
+
+    // Clear queue information when no regular user is logged in
+    if (!token || session.user?.role !== 'User') {
+      setActiveQueue(null)
+      setQueueLoadedForToken(null)
+      return
+    }
+
+    let cancelled = false
+
+    setActiveQueue(null)
+
+    async function restoreActiveQueue() {
+      try {
+
+        const response = await fetch(
+          `${API_URL}/api/queues/me/active`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        )
+
+        if (!response.ok) {
+          throw new Error('Could not restore your queue status.')
+        }
+
+        const data = await response.json()
+
+        if (!cancelled) {
+
+          // The backend gets the actual queue from MySQL
+          setActiveQueue(data.activeQueue ?? null)
+
+        }
+
+      } catch (error) {
+
+        if (!cancelled) {
+          console.error(error)
+
+          showToast(
+            'Could not load your active queue. Please refresh to try again.'
+          )
+        }
+
+      } finally {
+
+        if (!cancelled) {
+          setQueueLoadedForToken(token)
+        }
+      }
+    }
+
+    restoreActiveQueue()
+
+    return () => {
+      cancelled = true
+    }
+
+  }, [session?.token, session?.user?.role])
+
+
+  // Load notifications and history when the session changes
+  useEffect(() => {
+
     if (session?.token && session.user?.role === 'User') {
       refreshActivity(session.token)
+
     } else {
       setNotifications([])
       setHistory([])
     }
+
   }, [session, refreshActivity])
 
-  //update the user's queue after joining
+
+  // Update the user's queue after joining
   function handleJoinQueue(serviceId, position) {
-    const service = services.find((service) => service.id === serviceId)
+
+    const service = services.find(
+      (service) => service.id === serviceId
+    )
 
     setActiveQueue({
       serviceId: serviceId,
       position: position
     })
 
-    showToast(service ? `You joined the ${service.name} queue.` : 'You joined the queue.')
+    showToast(
+      service
+        ? `You joined the ${service.name} queue.`
+        : 'You joined the queue.'
+    )
+
     refreshActivity(session?.token)
   }
 
-  //update the user's queue after leaving
+
+  // Update the user's queue after leaving
   function handleLeaveQueue() {
+
     if (!activeQueue) {
       return
     }
 
-    showToast(activeService ? `You left the ${activeService.name} queue.` : 'You left the queue.')
+    showToast(
+      activeService
+        ? `You left the ${activeService.name} queue.`
+        : 'You left the queue.'
+    )
+
     setActiveQueue(null)
+
     refreshActivity(session?.token)
   }
 
-  //leave the queue from the queue status page
+
+  // Leave the queue from the Queue Status page
   async function handleLeaveFromStatus() {
+
     if (!activeQueue || !session?.token) {
       return
     }
 
     try {
+
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}/api/queues/${activeQueue.serviceId}/leave`,
+        `${API_URL}/api/queues/${activeQueue.serviceId}/leave`,
         {
           method: 'POST',
           headers: {
@@ -154,7 +350,11 @@ function App() {
 
       if (!response.ok) {
         const data = await response.json()
-        showToast(data.message || 'Could not leave the queue.')
+
+        showToast(
+          data.message || 'Could not leave the queue.'
+        )
+
         return
       }
 
@@ -165,10 +365,16 @@ function App() {
     }
   }
 
-  //update the user's position from the backend
+
+  // Update the user's position from the backend
   const handleQueueStatusChange = useCallback((data) => {
+
     setActiveQueue((current) => {
-      if (!current || String(current.serviceId) !== String(data.serviceId)) {
+
+      if (
+        !current ||
+        String(current.serviceId) !== String(data.serviceId)
+      ) {
         return current
       }
 
@@ -185,14 +391,17 @@ function App() {
         position: data.position
       }
     })
+
   }, [])
 
+
+  // Mark a notification as read
   async function handleMarkRead(id) {
+
     if (!session?.token) {
       return
     }
 
-    // update the view right away, then persist to the backend
     setNotifications((existing) =>
       existing.map((notification) =>
         notification.id === id
@@ -203,12 +412,16 @@ function App() {
 
     try {
       await markNotificationRead(session.token, id)
+
     } catch (error) {
       showToast('Could not update the notification.')
     }
   }
 
+
+  // Mark all notifications as read
   async function handleMarkAllRead() {
+
     if (!session?.token) {
       return
     }
@@ -222,12 +435,16 @@ function App() {
 
     try {
       await markAllNotificationsRead(session.token)
+
     } catch (error) {
       showToast('Could not update the notifications.')
     }
   }
 
+
+  // Clear notifications
   async function handleClearNotifications() {
+
     if (!session?.token) {
       return
     }
@@ -236,45 +453,91 @@ function App() {
 
     try {
       await clearNotifications(session.token)
+
     } catch (error) {
       showToast('Could not clear the notifications.')
     }
   }
 
+
+  // Register a new user
   async function handleRegister(credentials) {
+
     const newSession = await registerAccount(credentials)
+
+    // Remember this session during browser refreshes
+    sessionStorage.setItem(
+      SESSION_TOKEN_KEY,
+      newSession.token
+    )
+
     setSession(newSession)
     setActiveQueue(null)
-    return { success: true, user: newSession.user }
-  }
 
-  async function handleLogin(credentials) {
-    const newSession = await loginAccount(credentials)
-    setSession(newSession)
-    setActiveQueue(null)
-    return { success: true, user: newSession.user }
-  }
-
-  async function handleLogout() {
-    try {
-      if (session?.token) {
-        await logoutAccount(session.token)
-      }
-    } finally {
-      setSession(null)
-      setActiveQueue(null)
+    return {
+      success: true,
+      user: newSession.user
     }
   }
 
-  function handleProfileUpdated(profile) {
-    setSession((current) => current
-      ? { ...current, user: profile }
-      : current)
+
+  // Log in
+  async function handleLogin(credentials) {
+
+    const newSession = await loginAccount(credentials)
+
+    // Remember this session during browser refreshes
+    sessionStorage.setItem(
+      SESSION_TOKEN_KEY,
+      newSession.token
+    )
+
+    setSession(newSession)
+    setActiveQueue(null)
+
+    return {
+      success: true,
+      user: newSession.user
+    }
   }
+
+
+  // Log out
+  async function handleLogout() {
+
+    try {
+
+      if (session?.token) {
+        await logoutAccount(session.token)
+      }
+
+    } finally {
+
+      // Clear the saved session and queue information
+      sessionStorage.removeItem(SESSION_TOKEN_KEY)
+
+      setSession(null)
+      setActiveQueue(null)
+      setQueueLoadedForToken(null)
+    }
+  }
+
+
+  // Update the profile after editing
+  function handleProfileUpdated(profile) {
+
+    setSession((current) =>
+      current
+        ? { ...current, user: profile }
+        : current
+    )
+  }
+
 
   return (
     <BrowserRouter>
       <div className="app-shell">
+
         <Navbar
           currentUser={currentUser}
           onLogout={handleLogout}
@@ -282,150 +545,195 @@ function App() {
         />
 
         <main className="app-main">
-          <Routes>
 
-            <Route
-              path="/"
-              element={
-                <Navigate
-                  to={
-                    !currentUser
-                      ? '/login'
-                      : currentUser.role === 'Administrator'
-                        ? '/admin'
-                        : '/dashboard'
-                  }
-                  replace
-                />
-              }
-            />
+          {checkingSession || restoringQueue ? (
 
-            <Route
-              path="/dashboard"
-              element={
-                <UserOnly currentUser={currentUser}>
-                  <UserDashboard
-                    activeQueue={activeQueue}
-                    notifications={notifications}
+            <div className="page-container">
+              Loading your account and queue...
+            </div>
+
+          ) : (
+
+            <Routes>
+
+              <Route
+                path="/"
+                element={
+                  <Navigate
+                    to={
+                      !currentUser
+                        ? '/login'
+                        : currentUser.role === 'Administrator'
+                          ? '/admin'
+                          : '/dashboard'
+                    }
+                    replace
                   />
-                </UserOnly>
-              }
-            />
+                }
+              />
 
-            <Route
-              path="/profile"
-              element={
-                currentUser
-                  ? <Profile token={session.token} onProfileUpdated={handleProfileUpdated} />
-                  : <Navigate to="/login" replace />
-              }
-            />
+              <Route
+                path="/dashboard"
+                element={
+                  <UserOnly currentUser={currentUser}>
+                    <UserDashboard
+                      activeQueue={activeQueue}
+                      notifications={notifications}
+                    />
+                  </UserOnly>
+                }
+              />
 
-            <Route
-              path="/join-queue"
-              element={
-                <UserOnly currentUser={currentUser}>
-                  <JoinQueue
-                    activeQueue={inQueue ? activeQueue : null}
-                    onJoin={handleJoinQueue}
-                    onLeave={handleLeaveQueue}
-                    token={session?.token}
-                  />
-                </UserOnly>
-              }
-            />
+              <Route
+                path="/profile"
+                element={
+                  currentUser
+                    ? (
+                      <Profile
+                        token={session.token}
+                        onProfileUpdated={handleProfileUpdated}
+                      />
+                    )
+                    : <Navigate to="/login" replace />
+                }
+              />
 
-            <Route
-              path="/queue-status"
-              element={
-                <UserOnly currentUser={currentUser}>
-                  <QueueStatus
-                    activeQueue={activeQueue}
-                    token={session?.token}
-                    onStatusChange={handleQueueStatusChange}
-                    onLeave={handleLeaveFromStatus}
-                  />
-                </UserOnly>
-              }
-            />
+              <Route
+                path="/join-queue"
+                element={
+                  <UserOnly currentUser={currentUser}>
+                    <JoinQueue
+                      activeQueue={inQueue ? activeQueue : null}
+                      onJoin={handleJoinQueue}
+                      onLeave={handleLeaveQueue}
+                      token={session?.token}
+                    />
+                  </UserOnly>
+                }
+              />
 
-            <Route
-              path="/history"
-              element={
-                <UserOnly currentUser={currentUser}>
-                  <History history={history} />
-                </UserOnly>
-              }
-            />
+              <Route
+                path="/queue-status"
+                element={
+                  <UserOnly currentUser={currentUser}>
+                    <QueueStatus
+                      activeQueue={activeQueue}
+                      token={session?.token}
+                      onStatusChange={handleQueueStatusChange}
+                      onLeave={handleLeaveFromStatus}
+                    />
+                  </UserOnly>
+                }
+              />
 
-            <Route
-              path="/notifications"
-              element={
-                <UserOnly currentUser={currentUser}>
-                  <NotificationsPage
-                    notifications={notifications}
-                    onMarkRead={handleMarkRead}
-                    onMarkAllRead={handleMarkAllRead}
-                    onClear={handleClearNotifications}
-                  />
-                </UserOnly>
-              }
-            />
+              <Route
+                path="/history"
+                element={
+                  <UserOnly currentUser={currentUser}>
+                    <History history={history} />
+                  </UserOnly>
+                }
+              />
 
-            <Route
-              path="/admin"
-              element={
-                <AdminOnly currentUser={currentUser}>
-                  <AdminDashboard token={session?.token} />
-                </AdminOnly>
-              }
-            />
+              <Route
+                path="/notifications"
+                element={
+                  <UserOnly currentUser={currentUser}>
+                    <NotificationsPage
+                      notifications={notifications}
+                      onMarkRead={handleMarkRead}
+                      onMarkAllRead={handleMarkAllRead}
+                      onClear={handleClearNotifications}
+                    />
+                  </UserOnly>
+                }
+              />
 
-            <Route
-              path="/admin/services"
-              element={
-                <AdminOnly currentUser={currentUser}>
-                  <ServiceManagement token={session?.token} />
-                </AdminOnly>
-              }
-            />
+              <Route
+                path="/admin"
+                element={
+                  <AdminOnly currentUser={currentUser}>
+                    <AdminDashboard
+                      token={session?.token}
+                    />
+                  </AdminOnly>
+                }
+              />
 
-            <Route
-              path="/admin/queue"
-              element={
-                <AdminOnly currentUser={currentUser}>
-                  <QueueManagement token={session?.token} />
-                </AdminOnly>
-              }
-            />
+              <Route
+                path="/admin/services"
+                element={
+                  <AdminOnly currentUser={currentUser}>
+                    <ServiceManagement
+                      token={session?.token}
+                    />
+                  </AdminOnly>
+                }
+              />
 
-            <Route
-              path="/login"
-              element={
-                currentUser
-                  ? <Navigate to={currentUser.role === 'Administrator' ? '/admin' : '/dashboard'} replace />
-                  : <Login onLogin={handleLogin} />
-              }
-            />
+              <Route
+                path="/admin/queue"
+                element={
+                  <AdminOnly currentUser={currentUser}>
+                    <QueueManagement
+                      token={session?.token}
+                    />
+                  </AdminOnly>
+                }
+              />
 
-            <Route
-              path="/register"
-              element={
-                currentUser
-                  ? <Navigate to={currentUser.role === 'Administrator' ? '/admin' : '/dashboard'} replace />
-                  : <Register onRegister={handleRegister} />
-              }
-            />
+              <Route
+                path="/login"
+                element={
+                  currentUser
+                    ? (
+                      <Navigate
+                        to={
+                          currentUser.role === 'Administrator'
+                            ? '/admin'
+                            : '/dashboard'
+                        }
+                        replace
+                      />
+                    )
+                    : <Login onLogin={handleLogin} />
+                }
+              />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
+              <Route
+                path="/register"
+                element={
+                  currentUser
+                    ? (
+                      <Navigate
+                        to={
+                          currentUser.role === 'Administrator'
+                            ? '/admin'
+                            : '/dashboard'
+                        }
+                        replace
+                      />
+                    )
+                    : <Register onRegister={handleRegister} />
+                }
+              />
 
-          </Routes>
+              <Route
+                path="*"
+                element={<Navigate to="/" replace />}
+              />
+
+            </Routes>
+
+          )}
+
         </main>
 
         <Toasts
           toasts={toasts}
           onDismiss={dismissToast}
         />
+
       </div>
     </BrowserRouter>
   )
