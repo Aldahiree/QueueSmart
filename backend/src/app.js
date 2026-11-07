@@ -7,6 +7,7 @@ import { createServiceService } from './serviceService.js'
 import { createServiceRoutes } from './serviceRoutes.js'
 import { createNotificationService } from './notificationService.js'
 import { createHistoryService } from './historyService.js'
+import { createInMemoryNotificationRepository } from './notificationRepository.js'
 import { withQueueActivity } from './queueActivity.js'
 import { createNotificationRoutes } from './notificationRoutes.js'
 import { createHistoryRoutes } from './historyRoutes.js'
@@ -36,6 +37,7 @@ export function createApp({
     authService,
     serviceRepository,
     queueEntryRepository,
+    notificationRepository,
     frontendOrigin
 } = {}) {
   if (!authService) {
@@ -97,9 +99,11 @@ export function createApp({
   //create the service management system
   const serviceService = createServiceService({ serviceRepository })
 
-  //Person 4 - notification and history stores
-  const notificationService = createNotificationService()
-  const historyService = createHistoryService()
+  //Person 4 - notifications and history share one Notification table.
+  //MySQL when the server passes a repository, in-memory for the unit tests.
+  const notificationStore = notificationRepository ?? createInMemoryNotificationRepository()
+  const notificationService = createNotificationService({ notificationRepository: notificationStore })
+  const historyService = createHistoryService({ notificationRepository: notificationStore })
 
   //create the queue system, wrapped so Person 4 can react to join/leave/serve
   // Person 3: Use MySQL for queue entries.
