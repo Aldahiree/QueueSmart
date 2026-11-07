@@ -1,7 +1,7 @@
 import cors from 'cors'
 import express from 'express'
 import { AuthError } from './authService.js'
-import { createQueueService } from './queueService.js'
+import { createQueueService, createDatabaseQueueService } from './queueService.js'
 import { createQueueRoutes } from './queueRoutes.js'
 import { createServiceService } from './serviceService.js'
 import { createServiceRoutes } from './serviceRoutes.js'
@@ -32,7 +32,12 @@ function authenticationRequired(authService) {
   }
 }
 
-export function createApp({ authService, serviceRepository, frontendOrigin } = {}) {
+export function createApp({
+    authService,
+    serviceRepository,
+    queueEntryRepository,
+    frontendOrigin
+} = {}) {
   if (!authService) {
     throw new Error('An authentication service is required.')
   }
@@ -97,11 +102,17 @@ export function createApp({ authService, serviceRepository, frontendOrigin } = {
   const historyService = createHistoryService()
 
   //create the queue system, wrapped so Person 4 can react to join/leave/serve
-  const queueService = withQueueActivity(createQueueService(), {
-    notificationService,
-    historyService,
-    getService: (id) => serviceService.getService(id)
-  })
+  // Person 3: Use MySQL for queue entries.
+// Keep the original implementation for existing tests.
+const baseQueueService = queueEntryRepository
+  ? createDatabaseQueueService(queueEntryRepository)
+  : createQueueService()
+
+const queueService = withQueueActivity(baseQueueService, {
+  notificationService,
+  historyService,
+  getService: (id) => serviceService.getService(id)
+})
 
   //connect the service routes with the existing login system
   app.use('/api/services', requireAuthentication, createServiceRoutes({

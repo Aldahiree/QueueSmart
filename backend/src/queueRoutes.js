@@ -1,12 +1,16 @@
 import { Router } from 'express'
 
 
-export function createQueueRoutes({ queueService, getService, getPriority = () => 0 }) {
+export function createQueueRoutes({
+    queueService,
+    getService,
+    getPriority = () => 0
+}) {
 
     const router = Router()
 
 
-    //send the response depending on whether the request worked
+    // Send the response depending on whether the request worked
     function sendResult(response, result, status = 200) {
         if (result.error) {
             return response.status(result.status).json({
@@ -18,7 +22,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
     }
 
 
-    //check if the person is an administrator
+    // Check if the person is an administrator
     function adminOnly(request, response, next) {
         if (request.user.role !== 'Administrator') {
             return response.status(403).json({
@@ -30,7 +34,24 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
     }
 
 
-    //let a user join a queue
+    // Person 3: Restore the user's active queue after refreshing
+    router.get('/me/active', async (request, response) => {
+
+        if (request.user.role !== 'User') {
+            return response.status(403).json({
+                message: 'Only users can check their queue.'
+            })
+        }
+
+        const result = await queueService.getMyActiveQueue(
+            request.user.id
+        )
+
+        return response.json(result)
+    })
+
+
+    // Let a user join a queue
     router.post('/:serviceId/join', async (request, response) => {
 
         if (request.user.role !== 'User') {
@@ -47,7 +68,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
             })
         }
 
-        //get the service status from the backend, not the user
+        // Get the service status from the backend
         const isOpen = service.isOpen === true ||
             String(service.status).toLowerCase() === 'open'
 
@@ -65,7 +86,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
     })
 
 
-    //let a user leave their queue
+    // Let a user leave their queue
     router.post('/:serviceId/leave', async (request, response) => {
 
         if (request.user.role !== 'User') {
@@ -83,7 +104,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
     })
 
 
-    //let users check their own queue status
+    // Let users check their own queue status
     router.get('/:serviceId/status', async (request, response) => {
 
         if (request.user.role !== 'User') {
@@ -109,7 +130,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
     })
 
 
-    //allow an admin to see everyone waiting
+    // Allow an admin to see everyone waiting
     router.get('/:serviceId', adminOnly, async (request, response) => {
 
         const service = await getService(request.params.serviceId)
@@ -120,7 +141,9 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
             })
         }
 
-        const queue = await queueService.getQueue(request.params.serviceId)
+        const queue = await queueService.getQueue(
+            request.params.serviceId
+        )
 
         return response.json({
             serviceId: request.params.serviceId,
@@ -130,7 +153,7 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
     })
 
 
-    //admin serves the next user in the queue
+    // Admin serves the next user in the queue
     router.post('/:serviceId/next', adminOnly, async (request, response) => {
 
         const service = await getService(request.params.serviceId)
@@ -141,7 +164,9 @@ export function createQueueRoutes({ queueService, getService, getPriority = () =
             })
         }
 
-        const result = await queueService.serveNext(request.params.serviceId)
+        const result = await queueService.serveNext(
+            request.params.serviceId
+        )
 
         return sendResult(response, result)
     })

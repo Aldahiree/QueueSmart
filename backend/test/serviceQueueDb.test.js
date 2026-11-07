@@ -227,18 +227,63 @@ test('mysql repository skips an empty update', async () => {
 
 
 //check opening, closing, and listing queues
+// Check opening, closing, and listing queues
 test('mysql repository opens, closes, and lists queues', async () => {
-    const queueRow = { id: 7, service_id: 1, status: 'open', created_at: 'now', closed_at: null }
-    const pool = fakePool([{}, [queueRow], {}, [queueRow, { ...queueRow, id: 6, status: 'closed', closed_at: 'then' }], []])
+
+    const queueRow = {
+        id: 7,
+        service_id: 1,
+        status: 'open',
+        created_at: 'now',
+        closed_at: null
+    }
+
+    const pool = fakePool([
+        {},                         // Open queue
+        [queueRow],                 // Retrieve open queue
+        [{ id: 7 }],                // Lock queue
+        {},                         // Update waiting QueueEntry records
+        {},                         // Close queue
+        [
+            queueRow,
+            {
+                ...queueRow,
+                id: 6,
+                status: 'closed',
+                closed_at: 'then'
+            }
+        ],                         // List queues
+        []                          // No open queue
+    ])
+
     const repository = createMySqlServiceRepository(pool)
 
     const opened = await repository.openQueue(1)
+
     await repository.closeQueue(1)
+
     const queues = await repository.listQueues(1)
+
     const none = await repository.getOpenQueue(1)
 
+    // Check the queue was opened
     assert.equal(opened.id, 7)
-    assert.match(pool.calls[2].sql, /SET status = 'closed'/)
+
+    // Check the queue was locked
+    assert.match(pool.calls[2].sql, /FOR UPDATE/)
+
+    // Check waiting users were removed
+    assert.match(pool.calls[3].sql, /UPDATE QueueEntry/)
+    assert.match(pool.calls[3].sql, /status = 'left'/)
+
+    // Check the queue was closed
+    assert.match(pool.calls[4].sql, /SET status = 'closed'/)
+
+    // Verify the transaction completed
+    assert.equal(pool.connection.committed, true)
+    assert.equal(pool.connection.released, true)
+
+    // Verify the returned queue information
     assert.equal(queues[1].closedAt, 'then')
     assert.equal(none, null)
 })

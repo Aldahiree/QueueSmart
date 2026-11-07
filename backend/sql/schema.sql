@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS UserCredentials (
   UNIQUE KEY uq_usercredentials_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+
 CREATE TABLE IF NOT EXISTS UserProfile (
   user_id CHAR(32) NOT NULL,
   name VARCHAR(80) NOT NULL,
@@ -38,6 +39,7 @@ CREATE TABLE IF NOT EXISTS Service (
   CONSTRAINT chk_service_name_length CHECK (CHAR_LENGTH(name) >= 2)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+
 -- Person 2: one row each time a service's queue is opened.
 -- A service can have many past (closed) queues but only one open queue,
 -- which the generated column and unique key enforce. MySQL does not allow
@@ -58,15 +60,80 @@ CREATE TABLE IF NOT EXISTS Queue (
     ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+
+-- Person 3: Queue Entry Management
+-- Stores users joining, leaving, and being served in queues.
+-- Each entry belongs to a user and a specific queue.
+
+CREATE TABLE IF NOT EXISTS QueueEntry (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+
+  queue_id INT UNSIGNED NOT NULL,
+  user_id CHAR(32) NOT NULL,
+
+  priority INT NOT NULL DEFAULT 0,
+
+  status ENUM('waiting', 'served', 'left')
+    NOT NULL DEFAULT 'waiting',
+
+  joined_at DATETIME(3)
+    NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+  finished_at DATETIME(3) DEFAULT NULL,
+
+  -- Prevent users from waiting in multiple queues at once.
+  -- Completed entries return NULL, allowing queue history.
+  waiting_user_id CHAR(32)
+    GENERATED ALWAYS AS (
+      CASE
+        WHEN status = 'waiting' THEN user_id
+        ELSE NULL
+      END
+    ) STORED,
+
+  PRIMARY KEY (id),
+
+  UNIQUE KEY uq_queueentry_active_user (waiting_user_id),
+
+  -- Helps retrieve waiting users in priority and joining order.
+  KEY idx_queueentry_queue (
+    queue_id,
+    status,
+    priority,
+    id
+  ),
+
+  -- Connect entries to Person 2's Queue table.
+  CONSTRAINT fk_queueentry_queue
+    FOREIGN KEY (queue_id)
+    REFERENCES Queue (id)
+    ON DELETE RESTRICT,
+
+  -- Connect entries to Person 1's UserCredentials table.
+  CONSTRAINT fk_queueentry_user
+    FOREIGN KEY (user_id)
+    REFERENCES UserCredentials (id)
+    ON DELETE RESTRICT
+
+) ENGINE=InnoDB
+DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_0900_ai_ci;
+
+
 -- Starting services, matching the A3 mock data
 INSERT IGNORE INTO Service (id, name, description, duration_minutes, priority) VALUES
   (1, 'Academic Advising', 'Meet with an advisor', 15, 'Medium'),
   (2, 'Financial Aid', 'Help with aid and billing', 20, 'High'),
   (3, 'IT Help Desk', 'Tech and account support', 10, 'Low');
 
+
 -- Only open a starting queue if the service has never had one, so loading
 -- this file again never reopens a queue an admin closed
 INSERT INTO Queue (service_id, status)
 SELECT s.id, 'open' FROM Service s
 WHERE s.id IN (1, 2)
-  AND NOT EXISTS (SELECT 1 FROM Queue q WHERE q.service_id = s.id);
+  AND NOT EXISTS (
+    SELECT 1
+    FROM Queue q
+    WHERE q.service_id = s.id
+  );
